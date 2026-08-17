@@ -49,6 +49,25 @@ const emptyForm = {
   adminPassword: "",
 };
 
+type PaymentConfig = {
+  provider: "PAYSTACK" | "HUBTEL";
+  environment: "TEST" | "LIVE";
+  publicKey: string;
+  configValue: string;
+  hasSecretKey: boolean;
+  hasWebhookSecret: boolean;
+  updatedAt?: string;
+};
+
+const emptyPaymentForm = {
+  provider: "PAYSTACK" as "PAYSTACK" | "HUBTEL",
+  environment: "TEST" as "TEST" | "LIVE",
+  publicKey: "",
+  secretKey: "",
+  webhookSecret: "",
+  configValue: "",
+};
+
 const emptyManualStudent: StagedStudent = {
   fullName: "",
   referenceNumber: "",
@@ -80,6 +99,18 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Payment settings modal - lets a Super Admin add/edit a department's
+  // real Paystack (or Hubtel) credentials once the department already
+  // exists, since the create-department form deliberately only collects
+  // the provider + a generic config value and leaves secrets for here.
+  const [paymentSettingsDept, setPaymentSettingsDept] = useState<Department | null>(null);
+  const [paymentForm, setPaymentForm] = useState(emptyPaymentForm);
+  const [paymentMeta, setPaymentMeta] = useState<{ hasSecretKey: boolean; hasWebhookSecret: boolean } | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSaved, setPaymentSaved] = useState(false);
 
   const shown = departments.filter((d) => (tab === "active" ? d.status === "ACTIVE" : d.status === "ARCHIVED"));
 
@@ -200,6 +231,92 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     router.refresh();
   }
 
+  async function openPaymentSettings(dept: Department) {
+    setPaymentSettingsDept(dept);
+    setPaymentForm(emptyPaymentForm);
+    setPaymentMeta(null);
+    setPaymentError(null);
+    setPaymentSaved(false);
+    setPaymentLoading(true);
+    try {
+      const res = await fetch(`/api/departments/${dept.id}/payment-config`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPaymentError(data.error ?? "Could not load payment configuration");
+        return;
+      }
+      const config: PaymentConfig | null = data.config;
+      if (config) {
+        setPaymentForm({
+          provider: config.provider,
+          environment: config.environment,
+          publicKey: config.publicKey,
+          secretKey: "",
+          webhookSecret: "",
+          configValue: config.configValue,
+        });
+        setPaymentMeta({ hasSecretKey: config.hasSecretKey, hasWebhookSecret: config.hasWebhookSecret });
+      } else {
+        setPaymentMeta({ hasSecretKey: false, hasWebhookSecret: false });
+      }
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
+  function closePaymentSettings() {
+    setPaymentSettingsDept(null);
+    setPaymentForm(emptyPaymentForm);
+    setPaymentMeta(null);
+    setPaymentError(null);
+    setPaymentSaved(false);
+  }
+
+  async function savePaymentSettings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!paymentSettingsDept) return;
+    setPaymentError(null);
+    setPaymentSaved(false);
+    setPaymentSaving(true);
+    try {
+      // Blank secret-bearing fields mean "leave unchanged" - only send the
+      // ones the admin actually typed something into, so re-saving after
+      // rotating just one credential can't wipe the others.
+      const body: Record<string, string> = {
+        provider: paymentForm.provider,
+        environment: paymentForm.environment,
+      };
+      if (paymentForm.publicKey.trim()) body.publicKey = paymentForm.publicKey.trim();
+      if (paymentForm.secretKey.trim()) body.secretKey = paymentForm.secretKey.trim();
+      if (paymentForm.webhookSecret.trim()) body.webhookSecret = paymentForm.webhookSecret.trim();
+      if (paymentForm.configValue.trim()) body.configValue = paymentForm.configValue.trim();
+
+      const res = await fetch(`/api/departments/${paymentSettingsDept.id}/payment-config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPaymentError(data.error ?? "Could not save payment configuration");
+        return;
+      }
+      const config: PaymentConfig = data.config;
+      setPaymentForm({
+        provider: config.provider,
+        environment: config.environment,
+        publicKey: config.publicKey,
+        secretKey: "",
+        webhookSecret: "",
+        configValue: config.configValue,
+      });
+      setPaymentMeta({ hasSecretKey: config.hasSecretKey, hasWebhookSecret: config.hasWebhookSecret });
+      setPaymentSaved(true);
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -232,15 +349,21 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             <p className="text-sm">Fresher: GHS {d.fresherAmount} · Continuing: GHS {d.continuingAmount}</p>
             <p className="text-xs text-muted">/d/{d.slug}</p>
 
-            {d.status === "ACTIVE" ? (
-              <button className="text-sm text-red-400 hover:underline" onClick={() => setArchivingId(d.id)}>
-                Archive Department
+            <div className="flex flex-wrap items-center gap-3">
+              <button className="text-sm text-sky-400 hover:underline" onClick={() => openPaymentSettings(d)}>
+                Payment Settings
               </button>
-            ) : (
-              <button className="text-sm text-emerald-400 hover:underline" onClick={() => restore(d)}>
-                Restore Department
-              </button>
-            )}
+
+              {d.status === "ACTIVE" ? (
+                <button className="text-sm text-red-400 hover:underline" onClick={() => setArchivingId(d.id)}>
+                  Archive Department
+                </button>
+              ) : (
+                <button className="text-sm text-emerald-400 hover:underline" onClick={() => restore(d)}>
+                  Restore Department
+                </button>
+              )}
+            </div>
 
             {archivingId === d.id && (
               <div className="space-y-2 rounded-md border border-red-900 bg-red-950/40 p-3">
@@ -271,6 +394,116 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
           </div>
         ))}
       </div>
+
+      {paymentSettingsDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+          <form onSubmit={savePaymentSettings} className="admin-card my-8 w-full max-w-lg space-y-5 p-6">
+            <div>
+              <h2 className="text-lg font-semibold">Payment Settings</h2>
+              <p className="text-sm text-muted">{paymentSettingsDept.name}</p>
+            </div>
+
+            {paymentError && <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">{paymentError}</p>}
+            {paymentSaved && !paymentError && (
+              <p className="rounded-md bg-emerald-950 px-3 py-2 text-sm text-emerald-400">
+                Payment configuration saved.
+              </p>
+            )}
+
+            {paymentLoading ? (
+              <p className="text-sm text-muted">Loading current configuration...</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted">Provider</label>
+                    <select
+                      className="admin-input"
+                      value={paymentForm.provider}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, provider: e.target.value as "PAYSTACK" | "HUBTEL" })}
+                    >
+                      <option value="PAYSTACK">Paystack</option>
+                      <option value="HUBTEL">Hubtel</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted">Environment</label>
+                    <select
+                      className="admin-input"
+                      value={paymentForm.environment}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, environment: e.target.value as "TEST" | "LIVE" })}
+                    >
+                      <option value="TEST">Test</option>
+                      <option value="LIVE">Live</option>
+                    </select>
+                  </div>
+                </div>
+
+                <Section title={paymentForm.provider === "HUBTEL" ? "Hubtel Credentials" : "Paystack Credentials"}>
+                  <TextField
+                    label={paymentForm.provider === "HUBTEL" ? "Client ID (Public Key)" : "Paystack Public Key"}
+                    value={paymentForm.publicKey}
+                    onChange={(v) => setPaymentForm({ ...paymentForm, publicKey: v })}
+                    placeholder={paymentForm.provider === "HUBTEL" ? "pk_... / Client ID" : "pk_test_... or pk_live_..."}
+                    full
+                  />
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-sm text-muted">
+                      {paymentForm.provider === "HUBTEL" ? "Client Secret" : "Paystack Secret Key"}
+                    </label>
+                    <input
+                      type="password"
+                      className="admin-input"
+                      value={paymentForm.secretKey}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, secretKey: e.target.value })}
+                      placeholder={
+                        paymentMeta?.hasSecretKey
+                          ? "Secret key is set - leave blank to keep it"
+                          : paymentForm.provider === "HUBTEL"
+                          ? "Client secret"
+                          : "sk_test_... or sk_live_..."
+                      }
+                    />
+                    <p className="text-xs text-muted">
+                      Never shown once saved. Leave blank to keep the current secret key.
+                    </p>
+                  </div>
+                  <TextField
+                    label="Payment Link / Configuration"
+                    value={paymentForm.configValue}
+                    onChange={(v) => setPaymentForm({ ...paymentForm, configValue: v })}
+                    placeholder={
+                      paymentForm.provider === "HUBTEL" ? "Hubtel Merchant Account Number" : "Paystack subaccount / config code"
+                    }
+                    full
+                  />
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-sm text-muted">Webhook Secret (optional)</label>
+                    <input
+                      type="password"
+                      className="admin-input"
+                      value={paymentForm.webhookSecret}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, webhookSecret: e.target.value })}
+                      placeholder={
+                        paymentMeta?.hasWebhookSecret ? "Webhook secret is set - leave blank to keep it" : "Auto-generated if left blank"
+                      }
+                    />
+                  </div>
+                </Section>
+              </>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="admin-btn-secondary" onClick={closePaymentSettings}>
+                Close
+              </button>
+              <button type="submit" className="admin-btn-primary" disabled={paymentLoading || paymentSaving}>
+                {paymentSaving ? "Saving..." : "Save Payment Settings"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">

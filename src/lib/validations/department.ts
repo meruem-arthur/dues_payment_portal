@@ -85,6 +85,29 @@ export const academicSessionSchema = z.object({
 
 export type AcademicSessionInput = z.infer<typeof academicSessionSchema>;
 
+// ------------------------------------------------------------
+// Payment provider configuration update (Phase 2 follow-up).
+//
+// Used by PATCH /api/departments/[id]/payment-config once a department
+// already exists, so a Super Admin can paste in / rotate the real
+// Paystack (or Hubtel) API credentials that the create-department form
+// deliberately leaves out. Every field is optional so the endpoint can
+// be called with a partial body (e.g. rotating just the secret key)
+// without clobbering the rest of the configuration - see the route
+// handler for the "blank means don't touch this field" convention
+// applied to the secret-bearing fields.
+// ------------------------------------------------------------
+export const paymentProviderConfigUpdateSchema = z.object({
+  provider: z.enum(["PAYSTACK", "HUBTEL"]).optional(),
+  environment: z.enum(["TEST", "LIVE"]).optional(),
+  publicKey: z.string().trim().max(500).optional(),
+  secretKey: z.string().trim().max(500).optional(),
+  webhookSecret: z.string().trim().max(500).optional(),
+  configValue: z.string().trim().max(500).optional(),
+});
+
+export type PaymentProviderConfigUpdateInput = z.infer<typeof paymentProviderConfigUpdateSchema>;
+
 export const departmentAdminSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
