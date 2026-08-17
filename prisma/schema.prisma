@@ -141,7 +141,7 @@ model Department {
   payments             Payment[]
   receipts             Receipt[]
   paymentConfig        PaymentProviderConfiguration?
-  smsConfig            SMSConfiguration?
+  smsConfig            SmsConfiguration?
   emailConfig          EmailConfiguration?
   auditLogs            AuditLog[]
   notificationLogs     NotificationLog[]
@@ -291,7 +291,7 @@ model PaymentProviderConfiguration {
   @@map("payment_provider_configurations")
 }
 
-model SMSConfiguration {
+model SmsConfiguration {
   id            String     @id @default(cuid())
   departmentId  String     @unique
   department    Department @relation(fields: [departmentId], references: [id])
