@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0d0a14;
+  color: #f1eefb;
+}
+
+/* ---------------------------------------------------------- */
+/* ADMIN PANEL THEME (dark + purple)                           */
+/* ---------------------------------------------------------- */
+
+.admin-shell {
+  background-color: #0d0a14;
+  min-height: 100vh;
+}
+
+.admin-card {
+  background-color: #15111f;
+  border: 1px solid #2a2338;
+  border-radius: 0.9rem;
+}
+
+.admin-card-glow {
+  background: radial-gradient(circle at top, rgba(168,85,247,0.08), transparent 60%), #15111f;
+  border: 1px solid #2a2338;
+  border-radius: 0.9rem;
+}
+
+.admin-btn-primary {
+  background: linear-gradient(135deg, #a855f7, #7e22ce);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.6rem;
+  padding: 0.65rem 1.3rem;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 4px 20px -6px rgba(168, 85, 247, 0.6);
+}
+.admin-btn-primary:hover { opacity: 0.92; }
+.admin-btn-primary:active { transform: scale(0.98); }
+.admin-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.admin-btn-secondary {
+  background-color: transparent;
+  border: 1px solid #2a2338;
+  color: #f1eefb;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.2rem;
+}
+.admin-btn-secondary:hover { background-color: #1c1728; }
+
+.admin-input {
+  background-color: #0d0a14;
+  border: 1px solid #2a2338;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  color: #f1eefb;
+  width: 100%;
+}
+.admin-input:focus { outline: none; border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168,85,247,0.15); }
+
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.6rem;
+  color: #9c93b3;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+.admin-nav-link:hover { background-color: #1c1728; color: #f1eefb; }
+.admin-nav-link.active {
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #d8b4fe;
+}
+
+/* ---------------------------------------------------------- */
+/* PORTAL THEME (light + teal) — login, public payment pages   */
+/* ---------------------------------------------------------- */
+
+.portal-shell {
+  position: relative;
+  background-color: #f4f7f8;
+  color: #1a2332;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Blurred, low-opacity background photo behind the student-facing pages.
+   Swap /public/campus-bg.jpg for your own image — everything else here
+   (blur amount, opacity, positioning) can stay as-is. */
+.portal-shell::before {
+  content: "";
+  position: fixed;
+  inset: -30px; /* overscan so the blur never shows a sharp edge at the viewport border */
+  background-image: url("/campus-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px);
+  opacity: 0.14;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.portal-content {
+  position: relative;
+  z-index: 1;
+}
+
+.portal-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8ec;
+  border-radius: 0.9rem;
+  box-shadow: 0 8px 30px -12px rgba(15, 23, 32, 0.12);
+}
+
+.portal-btn-primary {
+  background-color: #0f9b8e;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.6rem;
+  padding: 0.7rem 1.3rem;
+  transition: background-color 0.15s ease;
+}
+.portal-btn-primary:hover { background-color: #0b7a70; }
+.portal-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.portal-btn-secondary {
+  background-color: transparent;
+  border: 1px solid #e2e8ec;
+  color: #1a2332;
+  border-radius: 0.6rem;
+  padding: 0.65rem 1.2rem;
+}
+.portal-btn-secondary:hover { background-color: #f4f7f8; }
+
+.portal-input {
+  background-color: #f8fafb;
+  border: 1px solid #e2e8ec;
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  color: #1a2332;
+  width: 100%;
+}
+.portal-input:focus { outline: none; border-color: #0f9b8e; box-shadow: 0 0 0 3px rgba(15,155,142,0.12); }
+
+/* ---------------------------------------------------------- */
+/* Compatibility tokens used by table/detail components        */
+/* (admin context — dark/purple palette)                       */
+/* ---------------------------------------------------------- */
+.text-muted { color: #9c93b3; }
+.text-accent { color: #a855f7; }
+.border-border { border-color: #2a2338; }
+.text-foreground { color: #f1eefb; }
+
+.portal-crest {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #0f9b8e, #0b7a70);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin: 0 auto;
+  box-shadow: 0 8px 24px -8px rgba(15,155,142,0.5);
+}
