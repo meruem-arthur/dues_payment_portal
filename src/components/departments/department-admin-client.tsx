@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Papa from "papaparse";
 
 type Session = { id: string; name: string };
 type Department = {
@@ -9,68 +10,219 @@ type Department = {
   name: string;
   code: string;
   slug: string;
+  status: "ACTIVE" | "ARCHIVED";
   fresherAmount: number;
   continuingAmount: number;
   academicSession: Session;
   _count: { students: number };
 };
 
+type StagedStudent = {
+  fullName: string;
+  referenceNumber: string;
+  studentIndexNo: string;
+  level: "L100" | "L200" | "L300" | "L400" | "L500" | "L600";
+  phone: string;
+  email: string;
+};
+
+const LEVELS = ["L100", "L200", "L300", "L400", "L500", "L600"] as const;
+const LEVEL_MAP: Record<string, StagedStudent["level"]> = {
+  "100": "L100", "200": "L200", "300": "L300", "400": "L400", "500": "L500", "600": "L600",
+  L100: "L100", L200: "L200", L300: "L300", L400: "L400", L500: "L500", L600: "L600",
+};
+
 const emptyForm = {
   name: "",
   code: "",
-  slug: "",
-  description: "",
   academicSessionId: "",
-  fresherAmount: 0,
-  continuingAmount: 0,
-  contactEmail: "",
-  contactPhone: "",
+  fresherAmount: "",
+  continuingAmount: "",
+  paymentProvider: "PAYSTACK" as "PAYSTACK" | "HUBTEL",
+  paymentConfigValue: "",
+  smsSenderId: "",
+  smsMessageTemplate: "",
+  adminName: "",
+  adminEmail: "",
+  adminPhone: "",
+  adminUsername: "",
+  adminPassword: "",
 };
+
+const emptyManualStudent: StagedStudent = {
+  fullName: "",
+  referenceNumber: "",
+  studentIndexNo: "",
+  level: "L100",
+  phone: "",
+  email: "",
+};
+
+function generateClientPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const symbols = "!@#$%&*";
+  let pw = "";
+  for (let i = 0; i < 10; i++) pw += alphabet[Math.floor(Math.random() * alphabet.length)];
+  pw = symbols[Math.floor(Math.random() * symbols.length)] + String(Math.floor(Math.random() * 10)) + pw;
+  return pw;
+}
 
 export function DepartmentAdminClient({ departments, sessions }: { departments: Department[]; sessions: Session[] }) {
   const router = useRouter();
+  const [tab, setTab] = useState<"active" | "archived">("active");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ ...emptyForm, academicSessionId: sessions[0]?.id ?? "" });
+  const [students, setStudents] = useState<StagedStudent[]>([]);
+  const [manualStudent, setManualStudent] = useState<StagedStudent>(emptyManualStudent);
+  const [showManualRow, setShowManualRow] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const shown = departments.filter((d) => (tab === "active" ? d.status === "ACTIVE" : d.status === "ARCHIVED"));
+
+  function resetForm() {
+    setForm({ ...emptyForm, academicSessionId: sessions[0]?.id ?? "" });
+    setStudents([]);
+    setManualStudent(emptyManualStudent);
+    setShowManualRow(false);
+    setError(null);
+  }
+
+  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows = results.data as Record<string, string>[];
+        const parsed: StagedStudent[] = [];
+        const errors: string[] = [];
+        rows.forEach((row, idx) => {
+          const level = LEVEL_MAP[(row.level || "").trim()];
+          if (!row.name || !row.reference_number || !row.phone || !level) {
+            errors.push(`Row ${idx + 2}: missing or invalid required field`);
+            return;
+          }
+          parsed.push({
+            fullName: row.name,
+            referenceNumber: row.reference_number,
+            studentIndexNo: row.student_id || "",
+            level,
+            phone: row.phone,
+            email: row.email || "",
+          });
+        });
+        setStudents((prev) => [...prev, ...parsed]);
+        if (errors.length) setError(`${parsed.length} students added. ${errors.length} row(s) skipped (bad/missing data).`);
+      },
+    });
+    e.target.value = "";
+  }
+
+  function addManualStudent() {
+    if (!manualStudent.fullName || !manualStudent.referenceNumber || !manualStudent.phone) {
+      setError("Full name, reference number and phone are required to add a student");
+      return;
+    }
+    setStudents((prev) => [...prev, manualStudent]);
+    setManualStudent(emptyManualStudent);
+    setShowManualRow(false);
+    setError(null);
+  }
+
+  function removeStudent(idx: number) {
+    setStudents((prev) => prev.filter((_, i) => i !== idx));
+  }
 
   async function submitCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = await fetch("/api/departments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Could not create department");
-      return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          code: form.code,
+          academicSessionId: form.academicSessionId,
+          fresherAmount: Number(form.fresherAmount) || 0,
+          continuingAmount: Number(form.continuingAmount) || 0,
+          paymentProvider: { provider: form.paymentProvider, configValue: form.paymentConfigValue },
+          sms: { senderId: form.smsSenderId, messageTemplate: form.smsMessageTemplate },
+          admin: {
+            name: form.adminName,
+            email: form.adminEmail,
+            phone: form.adminPhone,
+            username: form.adminUsername,
+            password: form.adminPassword,
+          },
+          students,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Could not create department");
+        return;
+      }
+      setShowCreate(false);
+      resetForm();
+      router.refresh();
+    } finally {
+      setSubmitting(false);
     }
-    setShowCreate(false);
-    setForm({ ...emptyForm, academicSessionId: sessions[0]?.id ?? "" });
-    router.refresh();
   }
 
-  async function confirmDelete(dept: Department) {
+  async function confirmArchive(dept: Department) {
     if (confirmText !== dept.name) return;
-    await fetch(`/api/departments/${dept.id}`, {
-      method: "DELETE",
+    const res = await fetch(`/api/departments/${dept.id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmName: confirmText }),
+      body: JSON.stringify({ action: "archive", confirmName: confirmText }),
     });
-    setDeletingId(null);
-    setConfirmText("");
+    if (res.ok) {
+      setArchivingId(null);
+      setConfirmText("");
+      router.refresh();
+    }
+  }
+
+  async function restore(dept: Department) {
+    await fetch(`/api/departments/${dept.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "restore" }),
+    });
     router.refresh();
   }
 
   return (
     <div className="space-y-4">
-      <button className="admin-btn-primary" onClick={() => setShowCreate(true)}>New Department</button>
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 rounded-lg border border-white/10 p-1">
+          <button
+            className={`rounded-md px-3 py-1.5 text-sm ${tab === "active" ? "bg-white/10 font-semibold" : "text-muted"}`}
+            onClick={() => setTab("active")}
+          >
+            Active
+          </button>
+          <button
+            className={`rounded-md px-3 py-1.5 text-sm ${tab === "archived" ? "bg-white/10 font-semibold" : "text-muted"}`}
+            onClick={() => setTab("archived")}
+          >
+            Archived
+          </button>
+        </div>
+        <button className="admin-btn-primary" onClick={() => setShowCreate(true)}>New Department</button>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {departments.map((d) => (
+        {shown.length === 0 && <p className="text-sm text-muted">No {tab} departments.</p>}
+        {shown.map((d) => (
           <div key={d.id} className="admin-card space-y-2 p-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">{d.name}</h3>
@@ -79,15 +231,22 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             <p className="text-sm text-muted">Code: {d.code} · Students: {d._count.students}</p>
             <p className="text-sm">Fresher: GHS {d.fresherAmount} · Continuing: GHS {d.continuingAmount}</p>
             <p className="text-xs text-muted">/d/{d.slug}</p>
-            <button className="text-sm text-red-400 hover:underline" onClick={() => setDeletingId(d.id)}>
-              Delete Department
-            </button>
 
-            {deletingId === d.id && (
+            {d.status === "ACTIVE" ? (
+              <button className="text-sm text-red-400 hover:underline" onClick={() => setArchivingId(d.id)}>
+                Archive Department
+              </button>
+            ) : (
+              <button className="text-sm text-emerald-400 hover:underline" onClick={() => restore(d)}>
+                Restore Department
+              </button>
+            )}
+
+            {archivingId === d.id && (
               <div className="space-y-2 rounded-md border border-red-900 bg-red-950/40 p-3">
                 <p className="text-sm text-red-300">
-                  This permanently deletes {d.name}, its students, payments, receipts, and configuration. Type the
-                  department name to confirm.
+                  This moves {d.name} out of the active system. Its students, payments, receipts and financial
+                  history are kept, not deleted, and it can be restored later. Type the department name to confirm.
                 </p>
                 <input
                   className="admin-input"
@@ -96,15 +255,15 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   onChange={(e) => setConfirmText(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <button className="admin-btn-secondary" onClick={() => { setDeletingId(null); setConfirmText(""); }}>
+                  <button className="admin-btn-secondary" onClick={() => { setArchivingId(null); setConfirmText(""); }}>
                     Cancel
                   </button>
                   <button
                     className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                     disabled={confirmText !== d.name}
-                    onClick={() => confirmDelete(d)}
+                    onClick={() => confirmArchive(d)}
                   >
-                    Permanently Delete
+                    Archive Department
                   </button>
                 </div>
               </div>
@@ -114,15 +273,15 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <form onSubmit={submitCreate} className="admin-card w-full max-w-lg space-y-3 p-6">
-            <h2 className="text-lg font-semibold">New Department</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+          <form onSubmit={submitCreate} className="admin-card my-8 w-full max-w-2xl space-y-5 p-6">
+            <h2 className="text-lg font-semibold">Create Department</h2>
             {error && <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">{error}</p>}
+
             <div className="grid grid-cols-2 gap-3">
-              <TextField label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} full />
-              <TextField label="Code" value={form.code} onChange={(v) => setForm({ ...form, code: v })} />
-              <TextField label="Slug (URL)" value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} />
-              <div className="col-span-2 space-y-1">
+              <TextField label="Department Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} full />
+              <TextField label="Department Code" value={form.code} onChange={(v) => setForm({ ...form, code: v.toUpperCase() })} />
+              <div className="space-y-1">
                 <label className="text-sm text-muted">Academic Session</label>
                 <select
                   className="admin-input"
@@ -134,20 +293,139 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   ))}
                 </select>
               </div>
-              <TextField
-                label="Fresher Amount (GHS)"
-                value={String(form.fresherAmount)}
-                onChange={(v) => setForm({ ...form, fresherAmount: Number(v) || 0 })}
-              />
-              <TextField
-                label="Continuing Amount (GHS)"
-                value={String(form.continuingAmount)}
-                onChange={(v) => setForm({ ...form, continuingAmount: Number(v) || 0 })}
-              />
             </div>
+
+            <Section title="Payment Configuration">
+              <div className="grid grid-cols-2 gap-3">
+                <TextField
+                  label="Freshers' Fee (GHS)"
+                  value={form.fresherAmount}
+                  onChange={(v) => setForm({ ...form, fresherAmount: v })}
+                />
+                <TextField
+                  label="Continuing Students' Fee (GHS)"
+                  value={form.continuingAmount}
+                  onChange={(v) => setForm({ ...form, continuingAmount: v })}
+                />
+              </div>
+            </Section>
+
+            <Section title="Payment Provider">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-sm text-muted">Provider</label>
+                  <select
+                    className="admin-input"
+                    value={form.paymentProvider}
+                    onChange={(e) => setForm({ ...form, paymentProvider: e.target.value as "PAYSTACK" | "HUBTEL" })}
+                  >
+                    <option value="PAYSTACK">Paystack</option>
+                    <option value="HUBTEL">Hubtel</option>
+                  </select>
+                </div>
+                <TextField
+                  label="Payment Link / Configuration"
+                  value={form.paymentConfigValue}
+                  onChange={(v) => setForm({ ...form, paymentConfigValue: v })}
+                  placeholder={form.paymentProvider === "HUBTEL" ? "Hubtel Merchant Account Number" : "Paystack subaccount / config code"}
+                />
+              </div>
+              <p className="text-xs text-muted">
+                Full API credentials (secret keys) are added afterward from the department&apos;s payment settings page.
+              </p>
+            </Section>
+
+            <Section title="SMS Configuration">
+              <div className="grid grid-cols-2 gap-3">
+                <TextField
+                  label="Sender ID"
+                  value={form.smsSenderId}
+                  onChange={(v) => setForm({ ...form, smsSenderId: v.slice(0, 11) })}
+                  placeholder={form.code.toUpperCase().slice(0, 11) || "e.g. GESA"}
+                />
+                <TextField
+                  label="Receipt SMS Template"
+                  value={form.smsMessageTemplate}
+                  onChange={(v) => setForm({ ...form, smsMessageTemplate: v })}
+                  placeholder="Default template used if left blank"
+                  full={false}
+                />
+              </div>
+            </Section>
+
+            <Section title="Department Admin">
+              <div className="grid grid-cols-2 gap-3">
+                <TextField label="Financial Secretary Name" value={form.adminName} onChange={(v) => setForm({ ...form, adminName: v })} full />
+                <TextField label="Email" value={form.adminEmail} onChange={(v) => setForm({ ...form, adminEmail: v })} />
+                <TextField label="Phone" value={form.adminPhone} onChange={(v) => setForm({ ...form, adminPhone: v })} />
+                <TextField label="Username" value={form.adminUsername} onChange={(v) => setForm({ ...form, adminUsername: v })} />
+                <div className="space-y-1">
+                  <label className="text-sm text-muted">Password</label>
+                  <div className="flex gap-2">
+                    <input className="admin-input flex-1" value={form.adminPassword} onChange={(e) => setForm({ ...form, adminPassword: e.target.value })} />
+                    <button
+                      type="button"
+                      className="admin-btn-secondary whitespace-nowrap"
+                      onClick={() => setForm({ ...form, adminPassword: generateClientPassword() })}
+                    >
+                      Generate Password
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Section>
+
+            <Section title={`Students${students.length ? ` (${students.length} staged)` : ""}`}>
+              <div className="flex gap-2">
+                <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvFile} />
+                <button type="button" className="admin-btn-secondary" onClick={() => fileInputRef.current?.click()}>
+                  Upload CSV
+                </button>
+                <button type="button" className="admin-btn-secondary" onClick={() => setShowManualRow((v) => !v)}>
+                  Add Student Manually
+                </button>
+              </div>
+
+              {showManualRow && (
+                <div className="grid grid-cols-2 gap-2 rounded-md border border-white/10 p-3">
+                  <TextField label="Full Name" value={manualStudent.fullName} onChange={(v) => setManualStudent({ ...manualStudent, fullName: v })} full />
+                  <TextField label="Reference Number" value={manualStudent.referenceNumber} onChange={(v) => setManualStudent({ ...manualStudent, referenceNumber: v })} />
+                  <TextField label="Index Number" value={manualStudent.studentIndexNo} onChange={(v) => setManualStudent({ ...manualStudent, studentIndexNo: v })} />
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted">Level</label>
+                    <select
+                      className="admin-input"
+                      value={manualStudent.level}
+                      onChange={(e) => setManualStudent({ ...manualStudent, level: e.target.value as StagedStudent["level"] })}
+                    >
+                      {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <TextField label="Phone" value={manualStudent.phone} onChange={(v) => setManualStudent({ ...manualStudent, phone: v })} />
+                  <TextField label="Email (optional)" value={manualStudent.email} onChange={(v) => setManualStudent({ ...manualStudent, email: v })} full />
+                  <div className="col-span-2 flex justify-end">
+                    <button type="button" className="admin-btn-primary" onClick={addManualStudent}>Add to list</button>
+                  </div>
+                </div>
+              )}
+
+              {students.length > 0 && (
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-white/10 p-2">
+                  {students.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span>{s.fullName} · {s.referenceNumber} · {s.level}</span>
+                      <button type="button" className="text-red-400 hover:underline" onClick={() => removeStudent(i)}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className="admin-btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button type="submit" className="admin-btn-primary">Create Department</button>
+              <button type="button" className="admin-btn-secondary" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</button>
+              <button type="submit" className="admin-btn-primary" disabled={submitting}>
+                {submitting ? "Creating..." : "Create Department"}
+              </button>
             </div>
           </form>
         </div>
@@ -156,11 +434,32 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   );
 }
 
-function TextField({ label, value, onChange, full }: { label: string; value: string; onChange: (v: string) => void; full?: boolean }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2 border-t border-white/10 pt-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  full,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  full?: boolean;
+  placeholder?: string;
+}) {
   return (
     <div className={`space-y-1 ${full ? "col-span-2" : ""}`}>
       <label className="text-sm text-muted">{label}</label>
-      <input className="admin-input" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input className="admin-input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

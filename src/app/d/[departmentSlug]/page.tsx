@@ -11,6 +11,10 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
   });
 
   if (!department) return notFound();
+  // Archived departments keep their history but no longer accept new
+  // payments - the public link goes dark rather than silently accepting
+  // money into a department that's no longer active.
+  if (department.status === "ARCHIVED") return notFound();
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const fresherUrl = `${baseUrl}/d/${department.slug}?type=FRESHER`;

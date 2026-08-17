@@ -42,6 +42,11 @@ export type ProviderCredentials = {
   publicKey?: string | null;
   secretKey?: string | null;
   webhookSecret?: string | null;
+  // Provider-specific "Payment Link / Configuration" value entered on the
+  // department setup form. Each adapter decides what it means (a Hubtel
+  // POS Sales ID, a Paystack subaccount/split code, etc) - nothing outside
+  // the matching *.provider.ts file should try to interpret it.
+  configValue?: string | null;
   environment: "TEST" | "LIVE";
 };
 

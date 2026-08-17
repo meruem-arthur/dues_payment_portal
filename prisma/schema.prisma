@@ -4,8 +4,13 @@
 // Design principle: every department-scoped model carries a
 // departmentId foreign key. Isolation is enforced in application
 // code (src/lib/authorization.ts), never assumed from the schema
-// alone, but the FK guarantees referential integrity and enables
-// cascading deletes for the "delete a department" operation.
+// alone, but the FK guarantees referential integrity.
+//
+// Departments are never hard-deleted (see Department.status). No
+// relation below cascades on department delete - payment, receipt,
+// student and audit history must survive a department being taken
+// out of active use. The Postgres default (RESTRICT) applies instead,
+// so an accidental raw DELETE on a department with history simply fails.
 // ============================================================
 
 generator client {
@@ -34,6 +39,11 @@ enum AccountStatus {
 enum SessionStatus {
   ACTIVE
   INACTIVE
+  ARCHIVED
+}
+
+enum DepartmentStatus {
+  ACTIVE
   ARCHIVED
 }
 
@@ -115,6 +125,14 @@ model Department {
   contactPhone       String?
   slug               String   @unique // used in public payment URL /d/[slug]
 
+  // Departments are never hard-deleted: payment records are financial
+  // history and must survive department removal from the active system.
+  // "Deleting" a department in the UI archives it instead - it disappears
+  // from active lists/switchers but its data (students, payments, receipts,
+  // audit trail) remains queryable for reporting and compliance.
+  status             DepartmentStatus @default(ACTIVE)
+  archivedAt         DateTime?
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -138,6 +156,10 @@ model User {
   id           String        @id @default(cuid())
   name         String
   email        String        @unique
+  // Display/reference login handle shown on the department admin card.
+  // Authentication itself is still by email (see src/lib/auth.ts) - adding
+  // a second real login path is out of scope for this phase.
+  username     String?       @unique
   phone        String?
   passwordHash String
   role         Role
@@ -170,7 +192,7 @@ model Student {
   email            String?
 
   departmentId      String
-  department        Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department        Department      @relation(fields: [departmentId], references: [id])
   academicSessionId String
   academicSession   AcademicSession @relation(fields: [academicSessionId], references: [id])
 
@@ -199,7 +221,7 @@ model Payment {
   studentId     String
   student       Student       @relation(fields: [studentId], references: [id])
   departmentId  String
-  department    Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department    Department    @relation(fields: [departmentId], references: [id])
   academicSessionId String
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
 
@@ -232,7 +254,7 @@ model Receipt {
   studentId      String
   student        Student  @relation(fields: [studentId], references: [id])
   departmentId   String
-  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department     Department @relation(fields: [departmentId], references: [id])
 
   issuedAt DateTime @default(now())
 
@@ -246,7 +268,7 @@ model Receipt {
 model PaymentProviderConfiguration {
   id            String              @id @default(cuid())
   departmentId  String              @unique
-  department    Department          @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department    Department          @relation(fields: [departmentId], references: [id])
 
   provider      PaymentProviderType @default(PAYSTACK)
   environment   ProviderEnvironment @default(TEST)
@@ -255,6 +277,13 @@ model PaymentProviderConfiguration {
   publicKey     String?
   secretKey     String? // should be encrypted at rest in production; MVP stores as text via env-backed secret store
   webhookSecret String?
+
+  // Free-form "Payment Link / Configuration" value from the department setup
+  // form. Its meaning is entirely up to the chosen provider's adapter (e.g.
+  // a Paystack subaccount/split code, or a Hubtel POS Sales ID / receiver
+  // number) - this table and the rest of the app never interpret it, only
+  // the matching class in src/lib/payments/ does.
+  configValue   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -265,7 +294,7 @@ model PaymentProviderConfiguration {
 model SMSConfiguration {
   id            String     @id @default(cuid())
   departmentId  String     @unique
-  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department    Department @relation(fields: [departmentId], references: [id])
 
   senderId        String  @default("UMAT")
   messageTemplate String  @default("Payment received for {department}. Student: {name}. Reference: {reference}. Receipt: {receipt}. Status: PAID.")
@@ -282,7 +311,7 @@ model SMSConfiguration {
 model EmailConfiguration {
   id           String     @id @default(cuid())
   departmentId String     @unique
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id])
 
   fromAddress  String?
   emailTemplate String @default("Dear {name}, your payment of {amount} for {department} was successful. Reference: {reference}. Receipt: {receipt}.")
@@ -301,7 +330,7 @@ model EmailConfiguration {
 model WebhookEvent {
   id            String   @id @default(cuid())
   departmentId  String
-  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department    Department @relation(fields: [departmentId], references: [id])
   paymentId     String?
   payment       Payment? @relation(fields: [paymentId], references: [id])
 
@@ -319,7 +348,7 @@ model WebhookEvent {
 model NotificationLog {
   id           String              @id @default(cuid())
   departmentId String
-  department   Department          @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department   Department          @relation(fields: [departmentId], references: [id])
   channel      NotificationChannel
   recipient    String
   status       NotificationStatus  @default(PENDING)
@@ -336,7 +365,10 @@ model AuditLog {
   userId       String?
   user         User?    @relation(fields: [userId], references: [id])
   departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  // Explicit Restrict (not the SetNull that Prisma would otherwise infer for
+  // an optional relation): a department with audit history must never be
+  // deletable, full stop - archiving is the only path.
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
   action    String // e.g. "STUDENT_CREATED", "DEPARTMENT_DELETED"
   entity    String // e.g. "Student", "Department"

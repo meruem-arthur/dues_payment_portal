@@ -13,6 +13,7 @@ export default async function DashboardPage() {
 
   if (user.role === "SUPER_ADMIN") {
     const departments = await prisma.department.findMany({
+      where: { status: "ACTIVE" },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });

@@ -19,6 +19,7 @@ export default async function StudentsPage({
 
   if (user.role === "SUPER_ADMIN") {
     departments = await prisma.department.findMany({
+      where: { status: "ACTIVE" },
       select: { id: true, name: true, academicSessionId: true },
       orderBy: { name: "asc" },
     });
