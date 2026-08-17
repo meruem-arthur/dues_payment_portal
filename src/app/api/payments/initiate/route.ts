@@ -24,7 +24,14 @@ export async function POST(req: NextRequest) {
       include: { paymentConfig: true, academicSession: true },
     });
     if (!department) return NextResponse.json({ error: "Department not found" }, { status: 404 });
-    if (!department.paymentConfig?.secretKey) {
+    if (department.status === "ARCHIVED") {
+      return NextResponse.json({ error: "This department is no longer accepting payments" }, { status: 410 });
+    }
+    // "Configured" is deliberately provider-agnostic: some providers need a
+    // secret key, some need a configValue (e.g. Hubtel's merchant account
+    // number), some need both. The adapter itself throws a specific error
+    // if something it actually requires is missing.
+    if (!department.paymentConfig?.secretKey && !department.paymentConfig?.configValue) {
       return NextResponse.json({ error: "This department has not configured payments yet" }, { status: 400 });
     }
 
@@ -79,6 +86,7 @@ export async function POST(req: NextRequest) {
         publicKey: department.paymentConfig.publicKey,
         secretKey: department.paymentConfig.secretKey,
         webhookSecret: department.paymentConfig.webhookSecret,
+        configValue: department.paymentConfig.configValue,
         environment: department.paymentConfig.environment,
       }
     );
