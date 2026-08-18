@@ -1,11 +1,16 @@
 import type { SMSProvider } from "./provider.interface";
 import { MockSmsProvider } from "./mock.provider";
-// import { HubtelSmsProvider } from "./hubtel-sms.provider"; // add when configured
+import { AfricasTalkingSmsProvider } from "./africastalking.provider";
 
+/**
+ * SMS_PROVIDER selects the adapter app-wide (all departments share the same
+ * provider integration; each department supplies its own apiKey/username
+ * on SmsConfiguration, passed in separately at send() time). Falls back to
+ * the mock provider - which only logs, never actually sends - if unset.
+ */
 export function getSmsProvider(): SMSProvider {
-  // For MVP, always mock unless real credentials are present in env.
-  if (process.env.SMS_PROVIDER_API_KEY) {
-    // return new HubtelSmsProvider();
+  if (process.env.SMS_PROVIDER === "AFRICASTALKING") {
+    return new AfricasTalkingSmsProvider();
   }
   return new MockSmsProvider();
 }

@@ -297,7 +297,7 @@ model SmsConfiguration {
   department    Department @relation(fields: [departmentId], references: [id])
 
   senderId        String  @default("UMAT")
-  messageTemplate String  @default("Payment received for {department}. Student: {name}. Reference: {reference}. Receipt: {receipt}. Status: PAID.")
+  messageTemplate String  @default("Name : {name}\nRef No. : {reference}\nLevel : {level}\nPayment confirmed for {department} dues.\nReceipt No: {receipt}")
   apiKey          String?
   username        String?
   enabled         Boolean @default(true)

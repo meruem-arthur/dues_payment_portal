@@ -61,26 +61,40 @@ export async function issueReceiptAndNotify(paymentId: string) {
 
 async function sendSmsReceipt(
   payment: Awaited<ReturnType<typeof prisma.payment.findUniqueOrThrow>> & {
-    student: { fullName: string; referenceNumber: string; phone: string };
-    department: { name: string; smsConfig: { senderId: string; messageTemplate: string; enabled: boolean } | null };
+    student: { fullName: string; referenceNumber: string; phone: string; level: string };
+    department: {
+      name: string;
+      smsConfig: { senderId: string; messageTemplate: string; enabled: boolean; apiKey: string | null; username: string | null } | null;
+    };
   },
   receiptNumber: string
 ) {
   const smsConfig = payment.department.smsConfig;
   if (!smsConfig || !smsConfig.enabled) return;
 
+  // Student.level is stored as "L100".."L600" (see prisma schema) - drop
+  // the leading "L" so the SMS reads "Level : 300" as requested, not "L300".
+  const levelDisplay = payment.student.level.replace(/^L/, "");
+
   const message = smsConfig.messageTemplate
     .replace("{department}", payment.department.name)
     .replace("{name}", payment.student.fullName)
     .replace("{reference}", payment.student.referenceNumber)
+    .replace("{level}", levelDisplay)
     .replace("{receipt}", receiptNumber);
 
   const smsProvider = getSmsProvider();
-  const result = await smsProvider.send({
-    to: payment.student.phone,
-    message,
-    senderId: smsConfig.senderId,
-  });
+  const result = await smsProvider.send(
+    {
+      to: payment.student.phone,
+      message,
+      senderId: smsConfig.senderId,
+    },
+    {
+      apiKey: smsConfig.apiKey,
+      username: smsConfig.username,
+    }
+  );
 
   await prisma.notificationLog.create({
     data: {

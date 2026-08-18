@@ -108,6 +108,20 @@ export const paymentProviderConfigUpdateSchema = z.object({
 
 export type PaymentProviderConfigUpdateInput = z.infer<typeof paymentProviderConfigUpdateSchema>;
 
+// ------------------------------------------------------------
+// SMS config: same "blank means unchanged" convention on apiKey,
+// since it's the secret-bearing field here.
+// ------------------------------------------------------------
+export const smsConfigUpdateSchema = z.object({
+  senderId: z.string().trim().min(1).max(11).optional(), // Africa's Talking alphanumeric sender id limit
+  messageTemplate: z.string().trim().min(1).max(500).optional(),
+  username: z.string().trim().max(200).optional(),
+  apiKey: z.string().trim().max(500).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export type SmsConfigUpdateInput = z.infer<typeof smsConfigUpdateSchema>;
+
 export const departmentAdminSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),

@@ -10,6 +10,11 @@ export type SendSmsResult = {
   error?: string;
 };
 
+export type SmsCredentials = {
+  apiKey?: string | null;
+  username?: string | null;
+};
+
 export interface SMSProvider {
-  send(input: SendSmsInput): Promise<SendSmsResult>;
+  send(input: SendSmsInput, credentials: SmsCredentials): Promise<SendSmsResult>;
 }

@@ -99,8 +99,8 @@ body {
   background-image: url("/campus-bg.jpg");
   background-size: cover;
   background-position: center;
-  filter: blur(18px);
-  opacity: 0.14;
+  filter: blur(6px);
+  opacity: 0.7;
   z-index: 0;
   pointer-events: none;
 }
