@@ -48,14 +48,20 @@ export class PaystackProvider implements PaymentProvider {
     };
   }
 
-  async verifyTransaction(providerTxId: string, credentials: ProviderCredentials): Promise<VerifiedTransaction> {
+  async verifyTransaction(
+    identifiers: { providerTxId: string; internalReference: string },
+    credentials: ProviderCredentials
+  ): Promise<VerifiedTransaction> {
     if (!credentials.secretKey) {
       throw new Error("Paystack secret key is not configured for this department");
     }
 
-    const res = await fetch(`${PAYSTACK_BASE_URL}/transaction/verify/${encodeURIComponent(providerTxId)}`, {
-      headers: { Authorization: `Bearer ${credentials.secretKey}` },
-    });
+    // Paystack's verify endpoint is keyed by the transaction REFERENCE
+    // (the string we set at initialization), not the numeric transaction id.
+    const res = await fetch(
+      `${PAYSTACK_BASE_URL}/transaction/verify/${encodeURIComponent(identifiers.internalReference)}`,
+      { headers: { Authorization: `Bearer ${credentials.secretKey}` } }
+    );
 
     if (!res.ok) {
       throw new Error(`Paystack verification failed with status ${res.status}`);

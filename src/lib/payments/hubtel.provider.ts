@@ -90,8 +90,13 @@ export class HubtelProvider implements PaymentProvider {
     };
   }
 
-  async verifyTransaction(providerTxId: string, credentials: ProviderCredentials): Promise<VerifiedTransaction> {
-    const res = await fetch(`${HUBTEL_BASE_URL}/transaction/${encodeURIComponent(providerTxId)}`, {
+  async verifyTransaction(
+    identifiers: { providerTxId: string; internalReference: string },
+    credentials: ProviderCredentials
+  ): Promise<VerifiedTransaction> {
+    // Hubtel's verify endpoint is keyed by its own transaction id (unlike
+    // Paystack, which is keyed by our reference) - see provider.interface.ts.
+    const res = await fetch(`${HUBTEL_BASE_URL}/transaction/${encodeURIComponent(identifiers.providerTxId)}`, {
       headers: { Authorization: this.authHeader(credentials) },
     });
 
@@ -105,7 +110,7 @@ export class HubtelProvider implements PaymentProvider {
 
     return {
       success: status === "completed" || status === "success",
-      providerTxId: String(tx?.transactionId ?? tx?.TransactionId ?? providerTxId),
+      providerTxId: String(tx?.transactionId ?? tx?.TransactionId ?? identifiers.providerTxId),
       internalReference: tx?.clientReference ?? tx?.ClientReference ?? "",
       amount: Number(tx?.amount ?? tx?.Amount ?? 0),
       currency: "GHS",

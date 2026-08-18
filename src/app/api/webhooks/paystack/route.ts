@@ -93,12 +93,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Extra defense-in-depth: re-verify directly with the provider's API, not just the webhook signature.
-  const verified = await provider.verifyTransaction(parsed.providerTxId, {
-    publicKey: department.paymentConfig.publicKey,
-    secretKey: department.paymentConfig.secretKey,
-    webhookSecret: department.paymentConfig.webhookSecret,
-    environment: department.paymentConfig.environment,
-  });
+  const verified = await provider.verifyTransaction(
+    { providerTxId: parsed.providerTxId, internalReference: parsed.internalReference },
+    {
+      publicKey: department.paymentConfig.publicKey,
+      secretKey: department.paymentConfig.secretKey,
+      webhookSecret: department.paymentConfig.webhookSecret,
+      environment: department.paymentConfig.environment,
+    }
+  );
 
   if (!verified.success || verified.internalReference !== pendingPayment.internalReference) {
     await prisma.payment.update({ where: { id: pendingPayment.id }, data: { status: "FAILED" } });

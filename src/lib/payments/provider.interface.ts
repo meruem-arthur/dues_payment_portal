@@ -56,8 +56,17 @@ export interface PaymentProvider {
   /** Create a hosted payment session / link for a student to pay. */
   initiatePayment(input: InitiatePaymentInput, credentials: ProviderCredentials): Promise<InitiatePaymentResult>;
 
-  /** Verify a transaction directly with the provider's API (defense in depth alongside webhook signature check). */
-  verifyTransaction(providerTxId: string, credentials: ProviderCredentials): Promise<VerifiedTransaction>;
+  /**
+   * Verify a transaction directly with the provider's API (defense in depth
+   * alongside webhook signature check). Different providers key their verify
+   * lookup on different identifiers (Paystack: reference string, Hubtel:
+   * transaction id) - both are passed in and each adapter uses whichever
+   * one its own API requires.
+   */
+  verifyTransaction(
+    identifiers: { providerTxId: string; internalReference: string },
+    credentials: ProviderCredentials
+  ): Promise<VerifiedTransaction>;
 
   /** Validate that an inbound webhook request genuinely originated from the provider. */
   verifyWebhookSignature(rawBody: string, signatureHeader: string | null, credentials: ProviderCredentials): boolean;

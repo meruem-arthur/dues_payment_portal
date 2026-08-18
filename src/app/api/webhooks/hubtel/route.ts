@@ -84,7 +84,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Defense in depth: re-verify directly with Hubtel's API, not just the callback body.
-  const verified = await provider.verifyTransaction(parsed.providerTxId, credentials);
+  const verified = await provider.verifyTransaction(
+    { providerTxId: parsed.providerTxId, internalReference: parsed.internalReference },
+    credentials
+  );
 
   if (!verified.success || verified.internalReference !== pendingPayment.internalReference) {
     await prisma.payment.update({ where: { id: pendingPayment.id }, data: { status: "FAILED" } });
