@@ -15,6 +15,7 @@ type Department = {
   status: "ACTIVE" | "ARCHIVED";
   fresherAmount: number;
   continuingAmount: number;
+  logoUrl?: string | null;
   academicSession: Session;
   _count: { students: number };
 };
@@ -33,6 +34,54 @@ const LEVEL_MAP: Record<string, StagedStudent["level"]> = {
   "100": "L100", "200": "L200", "300": "L300", "400": "L400", "500": "L500", "600": "L600",
   L100: "L100", L200: "L200", L300: "L300", L400: "L400", L500: "L500", L600: "L600",
 };
+
+// Shared by the create-department logo picker and the per-department
+// "Edit Logo" dialog. Downscales to a small square so every department
+// logo renders consistently at the size it's actually shown at, and so
+// the stored data URL stays small regardless of the source file.
+function resizeLogoFile(
+  file: File,
+  { onSuccess, onError }: { onSuccess: (dataUrl: string) => void; onError: (msg: string) => void }
+) {
+  if (!file.type.startsWith("image/")) {
+    onError("Please choose an image file");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    onError("Image is too large (max 5MB)");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        onError("Could not process image");
+        return;
+      }
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      const dataUrl = canvas.toDataURL("image/png");
+      if (dataUrl.length > 700_000) {
+        onError("Image is too large even after resizing - try a simpler image");
+        return;
+      }
+      onSuccess(dataUrl);
+    };
+    img.onerror = () => onError("Could not read that image");
+    img.src = reader.result as string;
+  };
+  reader.onerror = () => onError("Could not read that file");
+  reader.readAsDataURL(file);
+}
 
 const emptyForm = {
   name: "",
@@ -103,6 +152,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [confirmText, setConfirmText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoDept, setLogoDept] = useState<Department | null>(null);
+  const [logoDraft, setLogoDraft] = useState<string | null>(null);
+  const [logoDeptError, setLogoDeptError] = useState<string | null>(null);
+  const [logoSaving, setLogoSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleRefresh() {
@@ -187,47 +240,53 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   function handleLogoFile(file: File | null) {
     setLogoError(null);
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setLogoError("Please choose an image file");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setLogoError("Image is too large (max 5MB)");
-      return;
-    }
+    resizeLogoFile(file, {
+      onSuccess: (dataUrl) => setForm((f) => ({ ...f, logoUrl: dataUrl })),
+      onError: setLogoError,
+    });
+  }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        // Downscale to a small square so every department logo renders
-        // consistently at the size it's actually shown at, and so the
-        // stored data URL stays small regardless of the source file.
-        const size = 256;
-        const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          setLogoError("Could not process image");
-          return;
-        }
-        const scale = Math.max(size / img.width, size / img.height);
-        const w = img.width * scale;
-        const h = img.height * scale;
-        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-        const dataUrl = canvas.toDataURL("image/png");
-        if (dataUrl.length > 700_000) {
-          setLogoError("Image is too large even after resizing - try a simpler image");
-          return;
-        }
-        setForm((f) => ({ ...f, logoUrl: dataUrl }));
-      };
-      img.onerror = () => setLogoError("Could not read that image");
-      img.src = reader.result as string;
-    };
-    reader.onerror = () => setLogoError("Could not read that file");
-    reader.readAsDataURL(file);
+  function openLogoEditor(dept: Department) {
+    setLogoDept(dept);
+    setLogoDraft(dept.logoUrl ?? null);
+    setLogoDeptError(null);
+  }
+
+  function closeLogoEditor() {
+    setLogoDept(null);
+    setLogoDraft(null);
+    setLogoDeptError(null);
+  }
+
+  function handleLogoDeptFile(file: File | null) {
+    setLogoDeptError(null);
+    if (!file) return;
+    resizeLogoFile(file, {
+      onSuccess: (dataUrl) => setLogoDraft(dataUrl),
+      onError: setLogoDeptError,
+    });
+  }
+
+  async function saveLogoDept() {
+    if (!logoDept) return;
+    setLogoSaving(true);
+    setLogoDeptError(null);
+    try {
+      const res = await fetch(`/api/departments/${logoDept.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_logo", logoUrl: logoDraft }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLogoDeptError(data.error ?? "Could not save logo");
+        return;
+      }
+      closeLogoEditor();
+      router.refresh();
+    } finally {
+      setLogoSaving(false);
+    }
   }
 
   async function submitCreate(e: React.FormEvent) {
@@ -415,7 +474,13 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
         {shown.map((d) => (
           <div key={d.id} className="admin-card space-y-2 p-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{d.name}</h3>
+              <div className="flex items-center gap-2">
+                {d.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={d.logoUrl} alt={`${d.name} logo`} className="h-8 w-8 rounded-full border border-[#2a2338] object-cover" />
+                )}
+                <h3 className="font-semibold">{d.name}</h3>
+              </div>
               <span className="text-xs text-muted">{d.academicSession.name}</span>
             </div>
             <p className="text-sm text-muted">Code: {d.code} · Students: {d._count.students}</p>
@@ -425,6 +490,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             <div className="flex flex-wrap items-center gap-3">
               <button className="text-sm text-sky-400 hover:underline" onClick={() => openPaymentSettings(d)}>
                 Payment Settings
+              </button>
+
+              <button className="text-sm text-sky-400 hover:underline" onClick={() => openLogoEditor(d)}>
+                {d.logoUrl ? "Edit Logo" : "Add Logo"}
               </button>
 
               {d.status === "ACTIVE" ? (
@@ -576,6 +645,58 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {logoDept && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
+          <div className="admin-card my-8 w-full max-w-md space-y-4 p-6">
+            <h2 className="text-lg font-semibold">Department Logo</h2>
+            <p className="text-sm text-muted">{logoDept.name}</p>
+
+            <div className="flex items-center gap-4">
+              {logoDraft ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoDraft} alt="Logo preview" className="h-16 w-16 rounded-full border border-[#2a2338] object-cover" />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-[#2a2338] text-[10px] text-muted">
+                  No logo
+                </div>
+              )}
+              <div className="flex-1 space-y-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="admin-input"
+                  onChange={(e) => handleLogoDeptFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted">
+                  Shown as a small circular badge under the department name on the student payment page.
+                </p>
+                {logoDeptError && <p className="text-xs text-red-400">{logoDeptError}</p>}
+                {logoDraft && (
+                  <button type="button" className="text-xs text-red-400 underline" onClick={() => setLogoDraft(null)}>
+                    Remove logo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="admin-btn-secondary" onClick={closeLogoEditor} disabled={logoSaving}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="admin-btn-primary flex items-center justify-center gap-2"
+                onClick={saveLogoDept}
+                disabled={logoSaving}
+              >
+                {logoSaving && <Spinner />}
+                {logoSaving ? "Saving..." : "Save Logo"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

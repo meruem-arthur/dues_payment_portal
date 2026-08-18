@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
@@ -38,10 +38,11 @@ export default function LoginPage() {
       <div className="portal-content w-full max-w-sm space-y-6 text-center">
         <div className="space-y-2">
           <div className="portal-crest">
-            <GraduationCap size={28} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/school-crest.png" alt="University of Mines and Technology crest" />
           </div>
           <h1 className="text-2xl font-bold text-portal-text">Dues Payment Portal</h1>
-          <p className="text-sm text-portal-muted">Admin Sign In</p>
+          <p className="portal-text-on-photo text-base font-medium">Admin Sign In</p>
         </div>
 
         <form onSubmit={handleSubmit} className="portal-card space-y-4 p-8 text-left">

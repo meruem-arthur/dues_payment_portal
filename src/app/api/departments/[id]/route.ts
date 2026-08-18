@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireSuperAdmin, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { logAudit } from "@/lib/audit";
+import { departmentLogoUpdateSchema } from "@/lib/validations/department";
 
 // GET: single department lookup, scoped the same way the list endpoint is -
 // SUPER_ADMIN can look up any department, DEPARTMENT_ADMIN only their own.
@@ -40,9 +41,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
 
-    if (action !== "archive" && action !== "restore") {
+    if (action !== "archive" && action !== "restore" && action !== "update_logo") {
       return NextResponse.json(
-        { error: 'Invalid action - expected "archive" or "restore"' },
+        { error: 'Invalid action - expected "archive", "restore" or "update_logo"' },
         { status: 400 }
       );
     }
@@ -50,6 +51,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const department = await prisma.department.findUnique({ where: { id: params.id } });
     if (!department) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 });
+    }
+
+    if (action === "update_logo") {
+      const parsed = departmentLogoUpdateSchema.parse(body);
+      const updated = await prisma.department.update({
+        where: { id: params.id },
+        data: { logoUrl: parsed.logoUrl },
+      });
+
+      await logAudit({
+        userId: user.id,
+        departmentId: updated.id,
+        action: parsed.logoUrl ? "DEPARTMENT_LOGO_UPDATED" : "DEPARTMENT_LOGO_REMOVED",
+        entity: "Department",
+        entityId: updated.id,
+        metadata: { name: updated.name },
+      });
+
+      return NextResponse.json({ department: updated });
     }
 
     if (action === "archive") {

@@ -132,6 +132,20 @@ export const smsConfigUpdateSchema = z.object({
 
 export type SmsConfigUpdateInput = z.infer<typeof smsConfigUpdateSchema>;
 
+// Logo update for an already-created department (PATCH .../[id] with
+// action: "update_logo"). logoUrl: null explicitly clears the logo -
+// omitting the field entirely is a validation error so the intent is
+// always unambiguous from the request body.
+export const departmentLogoUpdateSchema = z.object({
+  logoUrl: z
+    .string()
+    .refine((v) => v.startsWith("data:image/"), "Logo must be an image")
+    .refine((v) => v.length < 700_000, "Logo image is too large")
+    .nullable(),
+});
+
+export type DepartmentLogoUpdateInput = z.infer<typeof departmentLogoUpdateSchema>;
+
 export const departmentAdminSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
