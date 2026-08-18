@@ -33,15 +33,24 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
             <GraduationCap size={28} />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-portal-muted">
-              University of Mines and Technology
+            <p
+              className="text-sm font-bold uppercase tracking-widest sm:text-base"
+              style={{ color: "#0b7a70", textShadow: "0 2px 6px rgba(255,255,255,0.85), 0 1px 2px rgba(255,255,255,0.9)" }}
+            >
+              University Of Mines And Technology
             </p>
-            <p className="text-xs text-portal-muted">Departmental Dues · {department.academicSession.name}</p>
+            <p
+              className="text-sm font-bold uppercase tracking-widest sm:text-base"
+              style={{ color: "#0b7a70", textShadow: "0 2px 6px rgba(255,255,255,0.85), 0 1px 2px rgba(255,255,255,0.9)" }}
+            >
+              Essikado Campus
+            </p>
+            <p className="mt-1 text-xs text-portal-muted">Departmental Dues · {department.academicSession.name}</p>
           </div>
           <h1 className="text-2xl font-bold uppercase text-portal-text">{department.name}</h1>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-8 sm:gap-12">
           <DuesCard
             title="First Year Students"
             amount={Number(department.fresherAmount)}

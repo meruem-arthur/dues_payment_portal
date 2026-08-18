@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
 import { DepartmentFilterDashboard } from "@/components/admin/department-filter-dashboard";
+import { RefreshButton } from "@/components/admin/refresh-button";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -53,9 +53,7 @@ function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
         </h1>
         <p className="text-sm text-admin-muted">{subtitle}</p>
       </div>
-      <button className="flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2338] text-admin-muted hover:text-admin-text">
-        <RefreshCw size={16} />
-      </button>
+      <RefreshButton />
     </div>
   );
 }

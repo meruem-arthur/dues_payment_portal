@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 type Student = {
   id: string;
@@ -155,7 +157,16 @@ export function StudentManager({
           <option value="SUCCESS">Paid</option>
           <option value="PENDING">Unpaid / Pending</option>
         </select>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#2a2338] text-muted hover:text-admin-text disabled:opacity-60"
+            onClick={() => fetchStudents()}
+            disabled={loading}
+            aria-label="Refresh students"
+            type="button"
+          >
+            {loading ? <Spinner /> : <RefreshCw size={16} />}
+          </button>
           <button className="admin-btn-secondary" onClick={() => setShowCsvDialog(true)}>Upload CSV</button>
           <button className="admin-btn-primary" onClick={() => setShowAddDialog(true)}>Add Student</button>
         </div>
@@ -225,7 +236,8 @@ export function StudentManager({
               <button type="button" className="admin-btn-secondary" onClick={closeEditDialog} disabled={saving}>
                 Cancel
               </button>
-              <button type="button" className="admin-btn-primary" onClick={saveEdit} disabled={saving}>
+              <button type="button" className="admin-btn-primary flex items-center justify-center gap-2" onClick={saveEdit} disabled={saving}>
+                {saving && <Spinner />}
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
@@ -360,7 +372,8 @@ function CsvUploadDialog({
             )}
             <div className="flex justify-end gap-2">
               <button className="admin-btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="admin-btn-primary" disabled={submitting || preview.validCount === 0} onClick={confirmInsert}>
+              <button className="admin-btn-primary flex items-center justify-center gap-2" disabled={submitting || preview.validCount === 0} onClick={confirmInsert}>
+                {submitting && <Spinner />}
                 {submitting ? "Inserting..." : `Insert ${preview.validCount} Students`}
               </button>
             </div>

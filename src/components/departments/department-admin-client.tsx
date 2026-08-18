@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
+import { RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 type Session = { id: string; name: string };
 type Department = {
@@ -98,7 +100,17 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [submitting, setSubmitting] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleRefresh() {
+    setRefreshing(true);
+    router.refresh();
+    // router.refresh() re-fetches server data in the background without a
+    // way to await completion, so we hold the spinner briefly to give
+    // clear feedback that the click registered.
+    setTimeout(() => setRefreshing(false), 700);
+  }
 
   // Payment settings modal - lets a Super Admin add/edit a department's
   // real Paystack (or Hubtel) credentials once the department already
@@ -334,7 +346,18 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             Archived
           </button>
         </div>
-        <button className="admin-btn-primary" onClick={() => setShowCreate(true)}>New Department</button>
+        <div className="flex items-center gap-2">
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#2a2338] text-admin-muted hover:text-admin-text disabled:opacity-60"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Refresh departments"
+            type="button"
+          >
+            {refreshing ? <Spinner /> : <RefreshCw size={16} />}
+          </button>
+          <button className="admin-btn-primary" onClick={() => setShowCreate(true)}>New Department</button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -497,7 +520,8 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
               <button type="button" className="admin-btn-secondary" onClick={closePaymentSettings}>
                 Close
               </button>
-              <button type="submit" className="admin-btn-primary" disabled={paymentLoading || paymentSaving}>
+              <button type="submit" className="admin-btn-primary flex items-center justify-center gap-2" disabled={paymentLoading || paymentSaving}>
+                {paymentSaving && <Spinner />}
                 {paymentSaving ? "Saving..." : "Save Payment Settings"}
               </button>
             </div>
@@ -506,8 +530,8 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
       )}
 
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
-          <form onSubmit={submitCreate} className="admin-card my-8 w-full max-w-2xl space-y-5 p-6">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
+          <form onSubmit={submitCreate} className="admin-card my-8 w-full max-w-2xl space-y-5 p-6 max-h-[calc(100vh-4rem)] overflow-y-auto">
             <h2 className="text-lg font-semibold">Create Department</h2>
             {error && <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">{error}</p>}
 
@@ -656,7 +680,8 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
 
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="admin-btn-secondary" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</button>
-              <button type="submit" className="admin-btn-primary" disabled={submitting}>
+              <button type="submit" className="admin-btn-primary flex items-center justify-center gap-2" disabled={submitting}>
+                {submitting && <Spinner />}
                 {submitting ? "Creating..." : "Create Department"}
               </button>
             </div>

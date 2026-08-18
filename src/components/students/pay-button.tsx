@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Spinner } from "@/components/ui/spinner";
 
 export function PayButton({
   departmentSlug,
@@ -61,7 +62,8 @@ export function PayButton({
       </div>
       <div className="flex gap-2">
         <button type="button" className="portal-btn-secondary flex-1" onClick={() => setOpen(false)}>Cancel</button>
-        <button type="submit" disabled={loading} className="portal-btn-primary flex-1">
+        <button type="submit" disabled={loading} className="portal-btn-primary flex flex-1 items-center justify-center gap-2">
+          {loading && <Spinner />}
           {loading ? "Redirecting..." : "Continue to Pay"}
         </button>
       </div>

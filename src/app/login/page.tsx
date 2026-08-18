@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { GraduationCap, Eye, EyeOff } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,11 +22,13 @@ export default function LoginPage() {
 
     const result = await signIn("credentials", { email, password, redirect: false });
 
-    setLoading(false);
     if (result?.error) {
+      setLoading(false);
       setError("Invalid email or password");
       return;
     }
+
+    setSuccess(true);
     router.push("/dashboard");
     router.refresh();
   }
@@ -45,6 +49,12 @@ export default function LoginPage() {
 
           {error && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">{error}</p>
+          )}
+
+          {success && (
+            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 border border-emerald-200">
+              Login successful. Redirecting…
+            </p>
           )}
 
           <div className="space-y-1">
@@ -82,8 +92,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button type="submit" disabled={loading} className="portal-btn-primary w-full">
-            {loading ? "Signing in..." : "Sign In"}
+          <button type="submit" disabled={loading} className="portal-btn-primary flex w-full items-center justify-center gap-2">
+            {loading && <Spinner />}
+            {success ? "Signed in" : loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
       </div>
