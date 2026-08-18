@@ -196,12 +196,12 @@ body {
    public student payment page. Only rendered when a department has
    uploaded one - see DuesCard usage. */
 .portal-dept-logo {
-  width: 3rem;
-  height: 3rem;
+  width: 6rem;
+  height: 6rem;
   border-radius: 9999px;
   object-fit: cover;
   margin: 0.5rem auto 0;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.35);
+  border: 3px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.35);
   display: block;
 }
