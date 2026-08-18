@@ -68,6 +68,16 @@ export const departmentCreateSchema = z.object({
   fresherAmount: z.coerce.number().nonnegative(),
   continuingAmount: z.coerce.number().nonnegative(),
 
+  // Small circular logo shown under the department name on the public
+  // student page. Optional - a data URL (image/*), capped well under the
+  // request body limit. Omitted entirely means no logo is shown.
+  logoUrl: z
+    .string()
+    .refine((v) => v.startsWith("data:image/"), "Logo must be an image")
+    .refine((v) => v.length < 700_000, "Logo image is too large")
+    .optional()
+    .or(z.literal("")),
+
   paymentProvider: paymentProviderSchema,
   sms: smsConfigSchema.optional(),
   admin: departmentAdminCreateSchema,

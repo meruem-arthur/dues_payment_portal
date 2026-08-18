@@ -173,12 +173,28 @@ body {
 .portal-crest {
   width: 4.5rem;
   height: 4.5rem;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, #0f9b8e, #0b7a70);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
   margin: 0 auto;
-  box-shadow: 0 8px 24px -8px rgba(15,155,142,0.5);
+}
+.portal-crest img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+}
+
+/* Small circular department logo shown under the department name on the
+   public student payment page. Only rendered when a department has
+   uploaded one - see DuesCard usage. */
+.portal-dept-logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  object-fit: cover;
+  margin: 0.5rem auto 0;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.35);
+  display: block;
 }

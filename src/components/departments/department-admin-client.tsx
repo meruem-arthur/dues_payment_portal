@@ -40,6 +40,7 @@ const emptyForm = {
   academicSessionId: "",
   fresherAmount: "",
   continuingAmount: "",
+  logoUrl: "",
   paymentProvider: "PAYSTACK" as "PAYSTACK" | "HUBTEL",
   paymentConfigValue: "",
   smsSenderId: "",
@@ -101,6 +102,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleRefresh() {
@@ -132,6 +134,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     setManualStudent(emptyManualStudent);
     setShowManualRow(false);
     setError(null);
+    setLogoError(null);
   }
 
   function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -181,6 +184,52 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     setStudents((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  function handleLogoFile(file: File | null) {
+    setLogoError(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setLogoError("Please choose an image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError("Image is too large (max 5MB)");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // Downscale to a small square so every department logo renders
+        // consistently at the size it's actually shown at, and so the
+        // stored data URL stays small regardless of the source file.
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          setLogoError("Could not process image");
+          return;
+        }
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        const dataUrl = canvas.toDataURL("image/png");
+        if (dataUrl.length > 700_000) {
+          setLogoError("Image is too large even after resizing - try a simpler image");
+          return;
+        }
+        setForm((f) => ({ ...f, logoUrl: dataUrl }));
+      };
+      img.onerror = () => setLogoError("Could not read that image");
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => setLogoError("Could not read that file");
+    reader.readAsDataURL(file);
+  }
+
   async function submitCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -195,6 +244,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
           academicSessionId: form.academicSessionId,
           fresherAmount: Number(form.fresherAmount) || 0,
           continuingAmount: Number(form.continuingAmount) || 0,
+          logoUrl: form.logoUrl || undefined,
           paymentProvider: { provider: form.paymentProvider, configValue: form.paymentConfigValue },
           sms: { senderId: form.smsSenderId, messageTemplate: form.smsMessageTemplate },
           admin: {
@@ -549,6 +599,46 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm text-muted">Department Logo (optional)</label>
+              <div className="flex items-center gap-4">
+                {form.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={form.logoUrl}
+                    alt="Department logo preview"
+                    className="h-16 w-16 rounded-full border border-[#2a2338] object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-[#2a2338] text-[10px] text-muted">
+                    No logo
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+                  />
+                  <p className="text-xs text-muted">
+                    Shown as a small circular badge under the department name on the student payment page. Leave
+                    this empty and nothing is shown there.
+                  </p>
+                  {logoError && <p className="text-xs text-red-400">{logoError}</p>}
+                  {form.logoUrl && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-400 underline"
+                      onClick={() => setForm((f) => ({ ...f, logoUrl: "" }))}
+                    >
+                      Remove logo
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

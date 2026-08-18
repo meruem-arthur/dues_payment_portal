@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { PayButton } from "@/components/students/pay-button";
 import QRCode from "qrcode";
-import { GraduationCap } from "lucide-react";
 
 export default async function PublicDepartmentPage({ params }: { params: { departmentSlug: string } }) {
   const department = await prisma.department.findUnique({
@@ -30,7 +29,8 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
       <div className="portal-content w-full max-w-3xl space-y-8 text-center">
         <div className="space-y-3">
           <div className="portal-crest">
-            <GraduationCap size={28} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/school-crest.png" alt="University of Mines and Technology crest" />
           </div>
           <div>
             <p
@@ -50,9 +50,13 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
             </p>
           </div>
           <h1 className="text-2xl font-bold uppercase text-portal-text">{department.name}</h1>
+          {department.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={department.logoUrl} alt={`${department.name} logo`} className="portal-dept-logo" />
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-10 sm:gap-24">
+        <div className="grid grid-cols-2 gap-5 sm:gap-24">
           <DuesCard
             title="First Year Students"
             amount={Number(department.fresherAmount)}

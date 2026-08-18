@@ -125,6 +125,12 @@ model Department {
   contactPhone       String?
   slug               String   @unique // used in public payment URL /d/[slug]
 
+  // Small circular logo shown under the department name on the public
+  // student payment page. Stored as a data URL (no external object storage
+  // configured for this project) - kept optional and simply omitted from
+  // the page entirely when null, per department.
+  logoUrl            String?
+
   // Departments are never hard-deleted: payment records are financial
   // history and must survive department removal from the active system.
   // "Deleting" a department in the UI archives it instead - it disappears

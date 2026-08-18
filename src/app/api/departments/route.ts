@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
           continuingAmount: parsed.continuingAmount,
           contactEmail: parsed.admin.email,
           contactPhone: parsed.admin.phone || null,
+          logoUrl: parsed.logoUrl || null,
         },
       });
 
