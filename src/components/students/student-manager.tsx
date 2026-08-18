@@ -159,7 +159,7 @@ export function StudentManager({
         </select>
         <div className="ml-auto flex items-center gap-2">
           <button
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#2a2338] text-muted hover:text-admin-text disabled:opacity-60"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md transition-colors hover:bg-white/10 hover:text-admin-text disabled:opacity-60"
             onClick={() => fetchStudents()}
             disabled={loading}
             aria-label="Refresh students"

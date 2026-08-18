@@ -29,26 +29,33 @@ body {
 }
 
 .admin-btn-primary {
-  background: linear-gradient(135deg, #a855f7, #7e22ce);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.75), rgba(126, 34, 206, 0.75));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: #ffffff;
   font-weight: 600;
   border-radius: 0.6rem;
   padding: 0.65rem 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   transition: opacity 0.15s ease, transform 0.1s ease;
-  box-shadow: 0 4px 20px -6px rgba(168, 85, 247, 0.6);
+  box-shadow: 0 4px 20px -6px rgba(168, 85, 247, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .admin-btn-primary:hover { opacity: 0.92; }
 .admin-btn-primary:active { transform: scale(0.98); }
 .admin-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .admin-btn-secondary {
-  background-color: transparent;
-  border: 1px solid #2a2338;
+  background-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: #f1eefb;
   border-radius: 0.6rem;
   padding: 0.6rem 1.2rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: background-color 0.15s ease;
 }
-.admin-btn-secondary:hover { background-color: #1c1728; }
+.admin-btn-secondary:hover { background-color: rgba(255, 255, 255, 0.1); }
 
 .admin-input {
   background-color: #0d0a14;
@@ -118,24 +125,31 @@ body {
 }
 
 .portal-btn-primary {
-  background-color: #0f9b8e;
+  background-color: rgba(15, 155, 142, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: #ffffff;
   font-weight: 600;
   border-radius: 0.6rem;
   padding: 0.7rem 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 20px -6px rgba(15, 155, 142, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transition: background-color 0.15s ease;
 }
-.portal-btn-primary:hover { background-color: #0b7a70; }
+.portal-btn-primary:hover { background-color: rgba(11, 122, 112, 0.85); }
 .portal-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .portal-btn-secondary {
-  background-color: transparent;
-  border: 1px solid #e2e8ec;
+  background-color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   color: #1a2332;
   border-radius: 0.6rem;
   padding: 0.65rem 1.2rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
-.portal-btn-secondary:hover { background-color: #f4f7f8; }
+.portal-btn-secondary:hover { background-color: rgba(255, 255, 255, 0.7); }
 
 .portal-input {
   background-color: #f8fafb;

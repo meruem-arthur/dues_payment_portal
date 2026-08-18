@@ -348,7 +348,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#2a2338] text-admin-muted hover:text-admin-text disabled:opacity-60"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-admin-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md transition-colors hover:bg-white/10 hover:text-admin-text disabled:opacity-60"
             onClick={handleRefresh}
             disabled={refreshing}
             aria-label="Refresh departments"

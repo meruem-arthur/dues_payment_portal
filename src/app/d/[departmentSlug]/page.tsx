@@ -45,12 +45,14 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
             >
               Essikado Campus
             </p>
-            <p className="mt-1 text-xs text-portal-muted">Departmental Dues · {department.academicSession.name}</p>
+            <p className="mt-1 text-base font-semibold text-black sm:text-lg">
+              Departmental Dues · {department.academicSession.name}
+            </p>
           </div>
           <h1 className="text-2xl font-bold uppercase text-portal-text">{department.name}</h1>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 sm:gap-12">
+        <div className="grid grid-cols-2 gap-10 sm:gap-24">
           <DuesCard
             title="First Year Students"
             amount={Number(department.fresherAmount)}
