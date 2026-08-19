@@ -111,6 +111,23 @@ type PaymentConfig = {
   updatedAt?: string;
 };
 
+type SmsConfig = {
+  senderId: string;
+  messageTemplate: string;
+  username: string;
+  hasApiKey: boolean;
+  enabled: boolean;
+  updatedAt?: string;
+};
+
+const emptySmsForm = {
+  senderId: "",
+  messageTemplate: "",
+  username: "",
+  apiKey: "",
+  enabled: true,
+};
+
 const emptyPaymentForm = {
   provider: "PAYSTACK" as "PAYSTACK" | "HUBTEL",
   environment: "TEST" as "TEST" | "LIVE",
@@ -178,6 +195,17 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentSaved, setPaymentSaved] = useState(false);
+
+  // SMS settings modal - same pattern as Payment Settings above: apiKey is
+  // never sent back from the GET, so a blank field on save means "leave it
+  // as it is" rather than "clear it".
+  const [smsSettingsDept, setSmsSettingsDept] = useState<Department | null>(null);
+  const [smsForm, setSmsForm] = useState(emptySmsForm);
+  const [smsMeta, setSmsMeta] = useState<{ hasApiKey: boolean } | null>(null);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [smsSaving, setSmsSaving] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsSaved, setSmsSaved] = useState(false);
 
   const shown = departments.filter((d) => (tab === "active" ? d.status === "ACTIVE" : d.status === "ARCHIVED"));
 
@@ -438,6 +466,86 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     }
   }
 
+  async function openSmsSettings(dept: Department) {
+    setSmsSettingsDept(dept);
+    setSmsForm(emptySmsForm);
+    setSmsMeta(null);
+    setSmsError(null);
+    setSmsSaved(false);
+    setSmsLoading(true);
+    try {
+      const res = await fetch(`/api/departments/${dept.id}/sms-config`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSmsError(data.error ?? "Could not load SMS configuration");
+        return;
+      }
+      const config: SmsConfig | null = data.config;
+      if (config) {
+        setSmsForm({
+          senderId: config.senderId,
+          messageTemplate: config.messageTemplate,
+          username: config.username,
+          apiKey: "",
+          enabled: config.enabled,
+        });
+        setSmsMeta({ hasApiKey: config.hasApiKey });
+      } else {
+        setSmsMeta({ hasApiKey: false });
+      }
+    } finally {
+      setSmsLoading(false);
+    }
+  }
+
+  function closeSmsSettings() {
+    setSmsSettingsDept(null);
+    setSmsForm(emptySmsForm);
+    setSmsMeta(null);
+    setSmsError(null);
+    setSmsSaved(false);
+  }
+
+  async function saveSmsSettings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!smsSettingsDept) return;
+    setSmsError(null);
+    setSmsSaved(false);
+    setSmsSaving(true);
+    try {
+      // Same "blank means unchanged" convention as payment settings - only
+      // send apiKey if the admin actually typed a new one.
+      const body: Record<string, string | boolean> = { enabled: smsForm.enabled };
+      if (smsForm.senderId.trim()) body.senderId = smsForm.senderId.trim();
+      if (smsForm.messageTemplate.trim()) body.messageTemplate = smsForm.messageTemplate.trim();
+      if (smsForm.username.trim()) body.username = smsForm.username.trim();
+      if (smsForm.apiKey.trim()) body.apiKey = smsForm.apiKey.trim();
+
+      const res = await fetch(`/api/departments/${smsSettingsDept.id}/sms-config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSmsError(data.error ?? "Could not save SMS configuration");
+        return;
+      }
+      const config: SmsConfig = data.config;
+      setSmsForm({
+        senderId: config.senderId,
+        messageTemplate: config.messageTemplate,
+        username: config.username,
+        apiKey: "",
+        enabled: config.enabled,
+      });
+      setSmsMeta({ hasApiKey: config.hasApiKey });
+      setSmsSaved(true);
+    } finally {
+      setSmsSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -490,6 +598,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             <div className="flex flex-wrap items-center gap-3">
               <button className="text-sm text-sky-400 hover:underline" onClick={() => openPaymentSettings(d)}>
                 Payment Settings
+              </button>
+
+              <button className="text-sm text-sky-400 hover:underline" onClick={() => openSmsSettings(d)}>
+                SMS Settings
               </button>
 
               <button className="text-sm text-sky-400 hover:underline" onClick={() => openLogoEditor(d)}>
@@ -642,6 +754,90 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
               <button type="submit" className="admin-btn-primary flex items-center justify-center gap-2" disabled={paymentLoading || paymentSaving}>
                 {paymentSaving && <Spinner />}
                 {paymentSaving ? "Saving..." : "Save Payment Settings"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {smsSettingsDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+          <form onSubmit={saveSmsSettings} className="admin-card my-8 w-full max-w-lg space-y-5 p-6">
+            <div>
+              <h2 className="text-lg font-semibold">SMS Settings</h2>
+              <p className="text-sm text-muted">{smsSettingsDept.name}</p>
+            </div>
+
+            {smsError && <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">{smsError}</p>}
+            {smsSaved && !smsError && (
+              <p className="rounded-md bg-emerald-950 px-3 py-2 text-sm text-emerald-400">
+                SMS configuration saved.
+              </p>
+            )}
+
+            {smsLoading ? (
+              <p className="text-sm text-muted">Loading current configuration...</p>
+            ) : (
+              <Section title="Africa's Talking Credentials">
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm text-muted">Send SMS receipts</label>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={smsForm.enabled}
+                    onChange={(e) => setSmsForm({ ...smsForm, enabled: e.target.checked })}
+                  />
+                </div>
+
+                <TextField
+                  label="Sender ID"
+                  value={smsForm.senderId}
+                  onChange={(v) => setSmsForm({ ...smsForm, senderId: v.slice(0, 11) })}
+                  placeholder="e.g. GESA (must be pre-approved by Africa's Talking)"
+                />
+                <TextField
+                  label="Username"
+                  value={smsForm.username}
+                  onChange={(v) => setSmsForm({ ...smsForm, username: v })}
+                  placeholder={'Africa\'s Talking app username ("sandbox" while testing)'}
+                />
+
+                <div className="space-y-1 col-span-2">
+                  <label className="text-sm text-muted">API Key</label>
+                  <input
+                    type="password"
+                    className="admin-input"
+                    value={smsForm.apiKey}
+                    onChange={(e) => setSmsForm({ ...smsForm, apiKey: e.target.value })}
+                    placeholder={smsMeta?.hasApiKey ? "API key is set - leave blank to keep it" : "Africa's Talking API key"}
+                  />
+                  <p className="text-xs text-muted">
+                    Never shown once saved. Leave blank to keep the current API key.
+                  </p>
+                </div>
+
+                <div className="space-y-1 col-span-2">
+                  <label className="text-sm text-muted">Receipt SMS Template</label>
+                  <input
+                    className="admin-input"
+                    value={smsForm.messageTemplate}
+                    onChange={(e) => setSmsForm({ ...smsForm, messageTemplate: e.target.value })}
+                    placeholder="Leave blank to keep the current template"
+                  />
+                  <p className="text-xs text-muted">
+                    Placeholders: {"{name} {reference} {level} {department} {receipt}"}
+                  </p>
+                </div>
+              </Section>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="admin-btn-secondary" onClick={closeSmsSettings}>
+                Close
+              </button>
+              <button type="submit" className="admin-btn-primary flex items-center justify-center gap-2" disabled={smsLoading || smsSaving}>
+                {smsSaving && <Spinner />}
+                {smsSaving ? "Saving..." : "Save SMS Settings"}
               </button>
             </div>
           </form>
