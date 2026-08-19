@@ -28,12 +28,20 @@ export class AfricasTalkingSmsProvider implements SMSProvider {
     const url = credentials.username === "sandbox" ? SANDBOX_URL : LIVE_URL;
     const to = normalizeGhanaPhone(input.to);
 
-    const body = new URLSearchParams({
+    // Only send "from" when a sender ID is actually configured and trusted
+    // to be approved. Africa's Talking rejects (or silently drops) an
+    // unregistered alphanumeric sender ID - omitting the param entirely
+    // instead falls back to the account's own default sender, which is
+    // what fixed this same problem on the election system.
+    const params: Record<string, string> = {
       username: credentials.username,
       to,
       message: input.message,
-      from: input.senderId,
-    });
+    };
+    if (input.senderId?.trim()) {
+      params.from = input.senderId.trim();
+    }
+    const body = new URLSearchParams(params);
 
     let res: Response;
     try {

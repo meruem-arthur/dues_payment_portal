@@ -128,7 +128,12 @@ export async function POST(req: NextRequest) {
       await tx.smsConfiguration.create({
         data: {
           departmentId: department.id,
-          senderId: parsed.sms?.senderId || parsed.code.toUpperCase().slice(0, 11),
+          // Leave blank rather than defaulting to the department code - an
+          // unapproved alphanumeric sender ID gets rejected by Africa's
+          // Talking (hit this on the election system). The provider omits
+          // "from" entirely when senderId is empty and AT falls back to the
+          // account's own default sender until a real one is approved.
+          senderId: parsed.sms?.senderId || "",
           ...(parsed.sms?.messageTemplate ? { messageTemplate: parsed.sms.messageTemplate } : {}),
         },
       });

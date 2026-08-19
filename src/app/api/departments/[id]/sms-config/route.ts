@@ -69,7 +69,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     const data = {
-      senderId: parsed.senderId ?? existing?.senderId ?? "UMAT",
+      // No fallback like "UMAT" here - an unapproved/unregistered sender id
+      // gets rejected by Africa's Talking (this bit us on the election
+      // system). Leaving it empty means the provider omits "from" entirely
+      // and AT uses the account's own default sender instead.
+      senderId: parsed.senderId ?? existing?.senderId ?? "",
       messageTemplate: parsed.messageTemplate ?? existing?.messageTemplate,
       username: parsed.username !== undefined ? parsed.username : existing?.username ?? null,
       apiKey: secretIfProvided(parsed.apiKey) ?? existing?.apiKey ?? null,

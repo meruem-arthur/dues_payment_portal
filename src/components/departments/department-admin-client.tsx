@@ -790,10 +790,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 </div>
 
                 <TextField
-                  label="Sender ID"
+                  label="Sender ID (optional)"
                   value={smsForm.senderId}
                   onChange={(v) => setSmsForm({ ...smsForm, senderId: v.slice(0, 11) })}
-                  placeholder="e.g. GESA (must be pre-approved by Africa's Talking)"
+                  placeholder="Leave blank until approved by Africa's Talking"
                 />
                 <TextField
                   label="Username"
@@ -801,6 +801,11 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   onChange={(v) => setSmsForm({ ...smsForm, username: v })}
                   placeholder={'Africa\'s Talking app username ("sandbox" while testing)'}
                 />
+
+                <p className="text-xs text-muted col-span-2">
+                  An unapproved sender ID gets rejected by Africa&apos;s Talking - leave this blank and messages
+                  send from the account&apos;s default sender until a real one is registered and approved.
+                </p>
 
                 <div className="space-y-1 col-span-2">
                   <label className="text-sm text-muted">API Key</label>
@@ -1002,10 +1007,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             <Section title="SMS Configuration">
               <div className="grid grid-cols-2 gap-3">
                 <TextField
-                  label="Sender ID"
+                  label="Sender ID (optional)"
                   value={form.smsSenderId}
                   onChange={(v) => setForm({ ...form, smsSenderId: v.slice(0, 11) })}
-                  placeholder={form.code.toUpperCase().slice(0, 11) || "e.g. GESA"}
+                  placeholder="Leave blank until approved by Africa's Talking"
                 />
                 <TextField
                   label="Receipt SMS Template"
@@ -1015,6 +1020,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   full={false}
                 />
               </div>
+              <p className="text-xs text-muted">
+                An unapproved sender ID gets rejected by Africa&apos;s Talking - leave this blank and messages send
+                from the account&apos;s default sender until a real one is registered and approved.
+              </p>
             </Section>
 
             <Section title="Department Admin">
