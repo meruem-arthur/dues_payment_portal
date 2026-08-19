@@ -60,12 +60,12 @@ export function PayButton({
         <label className="text-sm text-muted">Email (optional)</label>
         <input className="portal-input" value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
-      <div className="flex gap-2">
-        <button type="button" className="portal-btn-secondary flex-1" onClick={() => setOpen(false)}>Cancel</button>
-        <button type="submit" disabled={loading} className="portal-btn-primary flex flex-1 items-center justify-center gap-2">
+      <div className="flex flex-col gap-2">
+        <button type="submit" disabled={loading} className="portal-btn-primary flex w-full items-center justify-center gap-2">
           {loading && <Spinner />}
           {loading ? "Redirecting..." : "Continue to Pay"}
         </button>
+        <button type="button" className="portal-btn-secondary w-full" onClick={() => setOpen(false)}>Cancel</button>
       </div>
     </form>
   );
