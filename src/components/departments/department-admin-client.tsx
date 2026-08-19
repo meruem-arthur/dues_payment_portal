@@ -175,6 +175,13 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [logoSaving, setLogoSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Stale-pending-payment cleanup ("Expire Stale Pending" button below) -
+  // tracks which department is currently sweeping and the last result per
+  // department, keyed by department id so multiple cards can show feedback
+  // independently.
+  const [expiringId, setExpiringId] = useState<string | null>(null);
+  const [expireMessage, setExpireMessage] = useState<{ id: string; text: string } | null>(null);
+
   function handleRefresh() {
     setRefreshing(true);
     router.refresh();
@@ -397,6 +404,34 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
       body: JSON.stringify({ action: "restore" }),
     });
     router.refresh();
+  }
+
+  // Cancels any payment that's been stuck PENDING for 24h+ (abandoned
+  // checkout, webhook that never arrived). Safe to click any time - it only
+  // ever touches payments that are already stale.
+  async function expireStalePending(dept: Department) {
+    setExpiringId(dept.id);
+    setExpireMessage(null);
+    try {
+      const res = await fetch("/api/payments/expire-stale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ departmentId: dept.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setExpireMessage({ id: dept.id, text: data.error ?? "Could not expire stale payments" });
+        return;
+      }
+      const count = data.expiredCount ?? 0;
+      setExpireMessage({
+        id: dept.id,
+        text: count === 0 ? "No stale pending payments found" : `Expired ${count} stale pending payment${count === 1 ? "" : "s"}`,
+      });
+      router.refresh();
+    } finally {
+      setExpiringId(null);
+    }
   }
 
   async function openPaymentSettings(dept: Department) {
@@ -655,6 +690,15 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 {d.logoUrl ? "Edit Logo" : "Add Logo"}
               </button>
 
+              <button
+                className="text-sm text-amber-400 hover:underline disabled:opacity-50"
+                onClick={() => expireStalePending(d)}
+                disabled={expiringId === d.id}
+                type="button"
+              >
+                {expiringId === d.id ? "Expiring..." : "Expire Stale Pending"}
+              </button>
+
               {d.status === "ACTIVE" ? (
                 <button className="text-sm text-red-400 hover:underline" onClick={() => setArchivingId(d.id)}>
                   Archive Department
@@ -665,6 +709,8 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 </button>
               )}
             </div>
+
+            {expireMessage?.id === d.id && <p className="text-xs text-muted">{expireMessage.text}</p>}
 
             {archivingId === d.id && (
               <div className="space-y-2 rounded-md border border-red-900 bg-red-950/40 p-3">

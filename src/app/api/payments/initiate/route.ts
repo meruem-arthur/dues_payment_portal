@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments/provider-factory";
+import { PENDING_PAYMENT_STALE_AFTER_MS } from "@/lib/payments/constants";
 import { z } from "zod";
 
 const initiateSchema = z.object({
@@ -44,6 +45,41 @@ export async function POST(req: NextRequest) {
     });
     if (!student) {
       return NextResponse.json({ error: "No student found with that reference number in this department" }, { status: 404 });
+    }
+
+    // We don't do refunds, so a student who has already paid must never be
+    // able to start a second payment flow - whether that's a double-click,
+    // reopening an old link after paying, or a parent scanning the same QR
+    // code the student already used.
+    if (student.paymentStatus === "SUCCESS") {
+      return NextResponse.json(
+        { error: "You've already paid — check your SMS for your receipt." },
+        { status: 409 }
+      );
+    }
+
+    // Guard against a second payment flow starting while an earlier one is
+    // still in progress (e.g. a double-click before the first request even
+    // returns, or reopening the pay form seconds later). Only a RECENT
+    // pending payment blocks a retry - once it's older than the stale-payment
+    // cutoff it's treated as abandoned, matches what the expiry sweep in
+    // /api/payments/expire-stale will clean up, and no longer blocks anything.
+    const recentPendingPayment = await prisma.payment.findFirst({
+      where: {
+        studentId: student.id,
+        status: "PENDING",
+        createdAt: { gt: new Date(Date.now() - PENDING_PAYMENT_STALE_AFTER_MS) },
+      },
+      select: { id: true },
+    });
+    if (recentPendingPayment) {
+      return NextResponse.json(
+        {
+          error:
+            "You already have a payment in progress. Please wait a few minutes and check your SMS, or try again shortly.",
+        },
+        { status: 409 }
+      );
     }
 
     // A student's true payment type is derived from their level, never from
