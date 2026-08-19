@@ -324,6 +324,21 @@ function CsvUploadDialog({
   const [preview, setPreview] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  function downloadCsvTemplate() {
+    const header = "name,reference_number,student_id,level,phone,email";
+    const sampleRow = "Kwame Mensah,9013200723,10987654,300,0551234567,kwame.mensah@example.com";
+    const csv = `${header}\n${sampleRow}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "student_upload_template.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -356,6 +371,9 @@ function CsvUploadDialog({
         <p className="text-sm text-muted">
           Columns required: name, reference_number, student_id, level, phone, email
         </p>
+        <button type="button" className="admin-btn-secondary" onClick={downloadCsvTemplate}>
+          Download CSV Template
+        </button>
         <input type="file" accept=".csv" onChange={handleFile} className="admin-input" />
 
         {preview && (

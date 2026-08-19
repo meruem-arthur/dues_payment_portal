@@ -218,6 +218,25 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     setLogoError(null);
   }
 
+  // Matches handleCsvFile's expected columns exactly: name, reference_number
+  // and phone are required (level too, but shown here as a valid sample
+  // value); student_id and email are optional and left as empty columns
+  // in the blank template row so the header order is still obvious.
+  function downloadCsvTemplate() {
+    const header = "name,reference_number,student_id,level,phone,email";
+    const sampleRow = "Kwame Mensah,9013200723,10987654,300,0551234567,kwame.mensah@example.com";
+    const csv = `${header}\n${sampleRow}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "student_upload_template.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -823,11 +842,12 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
 
                 <div className="space-y-1 col-span-2">
                   <label className="text-sm text-muted">Receipt SMS Template</label>
-                  <input
-                    className="admin-input"
+                  <textarea
+                    className="admin-input resize-y"
                     value={smsForm.messageTemplate}
                     onChange={(e) => setSmsForm({ ...smsForm, messageTemplate: e.target.value })}
                     placeholder="Leave blank to keep the current template"
+                    rows={5}
                   />
                   <p className="text-xs text-muted">
                     Placeholders: {"{name} {reference} {level} {department} {receipt}"}
@@ -1005,24 +1025,24 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             </Section>
 
             <Section title="SMS Configuration">
-              <div className="grid grid-cols-2 gap-3">
-                <TextField
-                  label="Sender ID (optional)"
-                  value={form.smsSenderId}
-                  onChange={(v) => setForm({ ...form, smsSenderId: v.slice(0, 11) })}
-                  placeholder="Leave blank until approved by Africa's Talking"
-                />
-                <TextField
-                  label="Receipt SMS Template"
-                  value={form.smsMessageTemplate}
-                  onChange={(v) => setForm({ ...form, smsMessageTemplate: v })}
-                  placeholder="Default template used if left blank"
-                  full={false}
-                />
-              </div>
+              <TextField
+                label="Sender ID (optional)"
+                value={form.smsSenderId}
+                onChange={(v) => setForm({ ...form, smsSenderId: v.slice(0, 11) })}
+                placeholder="Leave blank until approved by Africa's Talking"
+              />
+              <TextAreaField
+                label="Receipt SMS Template"
+                value={form.smsMessageTemplate}
+                onChange={(v) => setForm({ ...form, smsMessageTemplate: v })}
+                placeholder={
+                  "Default template used if left blank:\nName : {name}\nRef No. : {reference}\nLevel : {level}\nPayment confirmed for {department} dues.\nReceipt No: {receipt}"
+                }
+                rows={5}
+              />
               <p className="text-xs text-muted">
-                An unapproved sender ID gets rejected by Africa&apos;s Talking - leave this blank and messages send
-                from the account&apos;s default sender until a real one is registered and approved.
+                An unapproved sender ID gets rejected by Africa&apos;s Talking - leave Sender ID blank and messages
+                send from the account&apos;s default sender until a real one is registered and approved.
               </p>
             </Section>
 
@@ -1049,8 +1069,11 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             </Section>
 
             <Section title={`Students${students.length ? ` (${students.length} staged)` : ""}`}>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvFile} />
+                <button type="button" className="admin-btn-secondary" onClick={downloadCsvTemplate}>
+                  Download CSV Template
+                </button>
                 <button type="button" className="admin-btn-secondary" onClick={() => fileInputRef.current?.click()}>
                   Upload CSV
                 </button>
@@ -1058,6 +1081,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   Add Student Manually
                 </button>
               </div>
+              <p className="text-xs text-muted">
+                Columns: name, reference_number, student_id (optional), level (100-600 or L100-L600), phone, email
+                (optional). name, reference_number, level and phone are required for each row.
+              </p>
 
               {showManualRow && (
                 <div className="grid grid-cols-2 gap-2 rounded-md border border-white/10 p-3">
@@ -1134,6 +1161,35 @@ function TextField({
     <div className={`space-y-1 ${full ? "col-span-2" : ""}`}>
       <label className="text-sm text-muted">{label}</label>
       <input className="admin-input" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  full,
+  placeholder,
+  rows = 4,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  full?: boolean;
+  placeholder?: string;
+  rows?: number;
+}) {
+  return (
+    <div className={`space-y-1 ${full ? "col-span-2" : ""}`}>
+      <label className="text-sm text-muted">{label}</label>
+      <textarea
+        className="admin-input resize-y"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+      />
     </div>
   );
 }
