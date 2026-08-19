@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments/provider-factory";
 import { PENDING_PAYMENT_STALE_AFTER_MS } from "@/lib/payments/constants";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { z } from "zod";
 
 const initiateSchema = z.object({
@@ -12,11 +13,29 @@ const initiateSchema = z.object({
   email: z.string().email().optional(),
 });
 
+// This is the one fully public, unauthenticated endpoint in the app -
+// anyone can call it without logging in, so it's the one most exposed to a
+// script hammering reference numbers or repeatedly calling out to the
+// payment provider's API on our dime. 8 requests / 10 minutes per IP is
+// generous enough for a genuine student retrying a typo or a slow network,
+// while still shutting down scripted abuse.
+const RATE_LIMIT_MAX_REQUESTS = 8;
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+
 // Public endpoint - no session required. Students are matched by reference
 // number, never by name. Amount is always taken from department config,
 // never from client input, to prevent tampering.
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rateLimit = checkRateLimit(`payments:initiate:${ip}`, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
     const input = initiateSchema.parse(body);
 
