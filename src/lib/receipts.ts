@@ -76,11 +76,17 @@ async function sendSmsReceipt(
   // the leading "L" so the SMS reads "Level : 300" as requested, not "L300".
   const levelDisplay = payment.student.level.replace(/^L/, "");
 
+  // payment.amount is a Prisma Decimal - format as plain "150" / "150.50",
+  // no trailing ".00" clutter, no currency symbol baked in (template controls that).
+  const amountNumber = Number(payment.amount);
+  const amountDisplay = Number.isInteger(amountNumber) ? amountNumber.toString() : amountNumber.toFixed(2);
+
   const message = smsConfig.messageTemplate
     .replace("{department}", payment.department.name)
     .replace("{name}", payment.student.fullName)
     .replace("{reference}", payment.student.referenceNumber)
     .replace("{level}", levelDisplay)
+    .replace("{amount}", amountDisplay)
     .replace("{receipt}", receiptNumber);
 
   const smsProvider = getSmsProvider();

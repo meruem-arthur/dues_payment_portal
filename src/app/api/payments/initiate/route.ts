@@ -46,6 +46,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No student found with that reference number in this department" }, { status: 404 });
     }
 
+    // A student's true payment type is derived from their level, never from
+    // whichever link/QR they happened to click. L100 = Fresher, everything
+    // else (L200-L600) = Continuing. Reject before any payment record or
+    // provider call is made, since we don't do refunds.
+    const expectedPaymentType = student.level === "L100" ? "FRESHER" : "CONTINUING";
+    if (input.paymentType !== expectedPaymentType) {
+      const message =
+        expectedPaymentType === "FRESHER"
+          ? "You're registered as a Level 100 student — use the First Year link"
+          : "You're registered as a continuing student - use the continuing student link";
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+
     const amount =
       input.paymentType === "FRESHER" ? Number(department.fresherAmount) : Number(department.continuingAmount);
 

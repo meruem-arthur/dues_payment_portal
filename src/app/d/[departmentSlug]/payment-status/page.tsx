@@ -25,6 +25,10 @@ export default async function PaymentStatusPage({
 
   const isPending = payment.status === "PENDING";
 
+  // payment.amount is a Prisma Decimal - format as plain "150" / "150.50".
+  const amountNumber = Number(payment.amount);
+  const amountDisplay = Number.isInteger(amountNumber) ? amountNumber.toString() : amountNumber.toFixed(2);
+
   return (
     <main className="portal-shell flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <div className="portal-content portal-card max-w-md space-y-3 p-8">
@@ -35,7 +39,7 @@ export default async function PaymentStatusPage({
           {isPending
             ? "We're waiting for confirmation from the payment provider. This page will not auto-refresh - please check back in a minute, or watch for your SMS receipt."
             : payment.status === "SUCCESS"
-            ? `Receipt ${payment.receipt?.receiptNumber ?? ""} has been issued and an SMS has been sent to ${payment.student.phone}.`
+            ? `Receipt ${payment.receipt?.receiptNumber ?? ""} has been issued for GHS ${amountDisplay}, and an SMS has been sent to ${payment.student.phone}.`
             : "Your payment was not successful. Please try again or contact your department."}
         </p>
       </div>

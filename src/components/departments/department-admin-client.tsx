@@ -892,7 +892,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                     rows={5}
                   />
                   <p className="text-xs text-muted">
-                    Placeholders: {"{name} {reference} {level} {department} {receipt}"}
+                    Placeholders: {"{name} {reference} {level} {amount} {department} {receipt}"}
                   </p>
                 </div>
               </Section>
