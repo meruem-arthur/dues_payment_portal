@@ -123,7 +123,10 @@ export type PaymentProviderConfigUpdateInput = z.infer<typeof paymentProviderCon
 // since it's the secret-bearing field here.
 // ------------------------------------------------------------
 export const smsConfigUpdateSchema = z.object({
-  senderId: z.string().trim().min(1).max(11).optional(), // Africa's Talking alphanumeric sender id limit
+  // Allow an explicit empty string ("clear the sender id") in addition to a
+  // real 1-11 char value - previously min(1) rejected "" outright, which
+  // made a bad/unapproved sender id impossible to remove once saved.
+  senderId: z.union([z.string().trim().max(11), z.literal("")]).optional(),
   messageTemplate: z.string().trim().min(1).max(500).optional(),
   username: z.string().trim().max(200).optional(),
   apiKey: z.string().trim().max(500).optional(),

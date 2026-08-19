@@ -525,6 +525,34 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     setSmsSaved(false);
   }
 
+  async function clearSenderId() {
+    if (!smsSettingsDept) return;
+    setSmsError(null);
+    setSmsSaved(false);
+    setSmsSaving(true);
+    try {
+      // Deliberately send senderId: "" here rather than relying on the
+      // normal save flow - leaving the field blank there means "no change",
+      // so this is the only way to actually clear a bad/unapproved sender
+      // id once it's been saved (see africastalking.provider.ts).
+      const res = await fetch(`/api/departments/${smsSettingsDept.id}/sms-config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderId: "" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSmsError(data.error ?? "Could not clear sender ID");
+        return;
+      }
+      const config: SmsConfig = data.config;
+      setSmsForm((f) => ({ ...f, senderId: config.senderId }));
+      setSmsSaved(true);
+    } finally {
+      setSmsSaving(false);
+    }
+  }
+
   async function saveSmsSettings(e: React.FormEvent) {
     e.preventDefault();
     if (!smsSettingsDept) return;
@@ -808,12 +836,25 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   />
                 </div>
 
-                <TextField
-                  label="Sender ID (optional)"
-                  value={smsForm.senderId}
-                  onChange={(v) => setSmsForm({ ...smsForm, senderId: v.slice(0, 11) })}
-                  placeholder="Leave blank until approved by Africa's Talking"
-                />
+                <div className="space-y-1">
+                  <label className="text-sm text-muted">Sender ID (optional)</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="admin-input"
+                      value={smsForm.senderId}
+                      onChange={(e) => setSmsForm({ ...smsForm, senderId: e.target.value.slice(0, 11) })}
+                      placeholder="Leave blank until approved by Africa's Talking"
+                    />
+                    <button
+                      type="button"
+                      className="admin-btn-secondary whitespace-nowrap"
+                      onClick={clearSenderId}
+                      disabled={smsSaving || !smsForm.senderId}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
                 <TextField
                   label="Username"
                   value={smsForm.username}
@@ -822,8 +863,9 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 />
 
                 <p className="text-xs text-muted col-span-2">
-                  An unapproved sender ID gets rejected by Africa&apos;s Talking - leave this blank and messages
-                  send from the account&apos;s default sender until a real one is registered and approved.
+                  An unapproved sender ID gets rejected by Africa&apos;s Talking (error: InvalidSenderId) - click
+                  Clear to remove a saved sender ID and messages will send from the account&apos;s default sender
+                  until a real one is registered and approved.
                 </p>
 
                 <div className="space-y-1 col-span-2">
