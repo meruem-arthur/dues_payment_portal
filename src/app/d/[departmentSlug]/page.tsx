@@ -56,7 +56,7 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
           )}
         </div>
 
-        <div className="grid grid-cols-2 items-start gap-10 sm:gap-48 mt-4 sm:mt-6">
+        <div className="grid grid-cols-1 items-start gap-10 sm:gap-48 mt-4 sm:mt-6 md:grid-cols-2">
           <DuesCard
             title="First Year Students"
             amount={Number(department.fresherAmount)}
