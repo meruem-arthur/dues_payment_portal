@@ -24,7 +24,11 @@ export default function LoginPage() {
 
     if (result?.error) {
       setLoading(false);
-      setError("Invalid email or password");
+      // NextAuth reports a failed authorize() returning null as the generic
+      // code "CredentialsSignin" - show our own generic message for that.
+      // A custom Error thrown from authorize() (e.g. the rate-limit message)
+      // comes through as its own text and is shown as-is.
+      setError(result.error === "CredentialsSignin" ? "Invalid email or password" : result.error);
       return;
     }
 
@@ -90,6 +94,11 @@ export default function LoginPage() {
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
+            </div>
+            <div className="text-right">
+              <a href="/forgot-password" className="text-sm text-portal-muted hover:text-portal-text hover:underline">
+                Forgot password?
+              </a>
             </div>
           </div>
 

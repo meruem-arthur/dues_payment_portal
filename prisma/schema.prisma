@@ -179,9 +179,28 @@ model User {
   updatedAt DateTime @updatedAt
 
   auditLogs AuditLog[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([departmentId])
   @@map("users")
+}
+
+model PasswordResetToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The raw token is emailed to the user and never stored - only its SHA-256
+  // hash lives here, same principle as passwordHash on User: a DB leak alone
+  // must not be enough to reset someone's account.
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ------------------------------------------------------------

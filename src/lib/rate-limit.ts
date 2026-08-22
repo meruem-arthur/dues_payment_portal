@@ -77,3 +77,21 @@ export function getClientIp(req: { headers: { get(name: string): string | null }
   if (realIp) return realIp;
   return "unknown";
 }
+
+/**
+ * Same idea as getClientIp(), for call sites that receive headers as a
+ * plain object instead of a Headers instance - e.g. NextAuth's
+ * `authorize(credentials, req)` callback, where `req.headers` is a plain
+ * key/value record, not a Fetch API Headers with `.get()`.
+ */
+export function getClientIpFromHeaderRecord(headers: Record<string, string | string[] | undefined> | undefined): string {
+  const forwardedRaw = headers?.["x-forwarded-for"];
+  const forwarded = Array.isArray(forwardedRaw) ? forwardedRaw[0] : forwardedRaw;
+  if (forwarded) return forwarded.split(",")[0].trim();
+
+  const realIpRaw = headers?.["x-real-ip"];
+  const realIp = Array.isArray(realIpRaw) ? realIpRaw[0] : realIpRaw;
+  if (realIp) return realIp;
+
+  return "unknown";
+}

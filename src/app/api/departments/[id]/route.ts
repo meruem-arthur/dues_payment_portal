@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireSuperAdmin, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { logAudit } from "@/lib/audit";
@@ -119,6 +120,6 @@ function handleError(err: unknown) {
   if (err && typeof err === "object" && "issues" in err) {
     return NextResponse.json({ error: "Invalid input", details: (err as any).issues }, { status: 400 });
   }
-  console.error(err);
+  captureError(err);
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 }

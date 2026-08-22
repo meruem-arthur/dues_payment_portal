@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments/provider-factory";
 import { issueReceiptAndNotify } from "@/lib/receipts";
+import { decryptPaymentSecrets } from "@/lib/crypto/field-encryption";
 
 /**
  * Hubtel's server-to-server payment callback. Same authoritative-source and
@@ -39,13 +40,14 @@ export async function POST(req: NextRequest) {
   }
 
   const provider = getPaymentProvider("HUBTEL");
+  const paymentConfig = decryptPaymentSecrets(department.paymentConfig);
 
   const credentials = {
-    publicKey: department.paymentConfig.publicKey,
-    secretKey: department.paymentConfig.secretKey,
-    webhookSecret: department.paymentConfig.webhookSecret,
-    configValue: department.paymentConfig.configValue,
-    environment: department.paymentConfig.environment,
+    publicKey: paymentConfig.publicKey,
+    secretKey: paymentConfig.secretKey,
+    webhookSecret: paymentConfig.webhookSecret,
+    configValue: paymentConfig.configValue,
+    environment: paymentConfig.environment,
   };
 
   const validSignature = provider.verifyWebhookSignature(rawBody, token, credentials);

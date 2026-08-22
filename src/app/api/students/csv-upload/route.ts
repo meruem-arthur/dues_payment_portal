@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import Papa from "papaparse";
 import { prisma } from "@/lib/db";
 import { requireDepartmentAccess, requireAuth, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
@@ -115,6 +116,6 @@ export async function POST(req: NextRequest) {
 function handleError(err: unknown) {
   if (err instanceof UnauthorizedError) return NextResponse.json({ error: err.message }, { status: 401 });
   if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
-  console.error(err);
+  captureError(err);
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 }

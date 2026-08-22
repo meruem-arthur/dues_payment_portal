@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { captureError } from "@/lib/monitoring/capture-error";
 
 export async function logAudit(params: {
   userId?: string | null;
@@ -22,6 +23,6 @@ export async function logAudit(params: {
     });
   } catch (err) {
     // Audit logging must never break the primary operation.
-    console.error("Failed to write audit log", err);
+    captureError(err, { context: "audit-log-write", action: params.action, entity: params.entity });
   }
 }

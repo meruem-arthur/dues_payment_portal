@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireDepartmentAccess, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { studentSchema } from "@/lib/validations/student";
@@ -93,6 +94,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 function handleError(err: unknown) {
   if (err instanceof UnauthorizedError) return NextResponse.json({ error: err.message }, { status: 401 });
   if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
-  console.error(err);
+  captureError(err);
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 }

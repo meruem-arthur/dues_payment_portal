@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
 import { requireSuperAdmin, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { smsConfigUpdateSchema } from "@/lib/validations/department";
 import { logAudit } from "@/lib/audit";
+import { encryptSecret } from "@/lib/crypto/field-encryption";
 
 // SMS credentials (Africa's Talking apiKey/username) for an already-created
 // department. Mirrors payment-config/route.ts: departments/route.ts only
@@ -62,7 +64,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Same convention as payment-config: a blank apiKey means "leave it
     // as it is", not "clear it" - it's never sent back to the client so
     // re-saving the form without retyping it must not wipe it out.
+    // apiKey is encrypted at rest (see field-encryption.ts) - only a
+    // freshly-submitted plaintext value gets encrypted here.
     const secretIfProvided = (v: string | undefined) => (v ? v : undefined);
+    const encryptedSecretIfProvided = (v: string | undefined) => (v ? encryptSecret(v) : undefined);
 
     const existing = await prisma.smsConfiguration.findUnique({
       where: { departmentId: params.id },
@@ -76,7 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       senderId: parsed.senderId ?? existing?.senderId ?? "",
       messageTemplate: parsed.messageTemplate ?? existing?.messageTemplate,
       username: parsed.username !== undefined ? parsed.username : existing?.username ?? null,
-      apiKey: secretIfProvided(parsed.apiKey) ?? existing?.apiKey ?? null,
+      apiKey: encryptedSecretIfProvided(parsed.apiKey) ?? existing?.apiKey ?? null,
       enabled: parsed.enabled ?? existing?.enabled ?? true,
     };
 
@@ -123,6 +128,6 @@ function handleError(err: unknown) {
   if (err && typeof err === "object" && "issues" in err) {
     return NextResponse.json({ error: "Invalid input", details: (err as any).issues }, { status: 400 });
   }
-  console.error(err);
+  captureError(err);
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 }

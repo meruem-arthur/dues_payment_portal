@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
 import { requireSuperAdmin, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { paymentProviderConfigUpdateSchema } from "@/lib/validations/department";
 import { logAudit } from "@/lib/audit";
+import { encryptSecret } from "@/lib/crypto/field-encryption";
 
 // Payment credentials for an already-created department.
 //
@@ -73,7 +75,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // public key (which the client never receives back, so it can only
     // ever resubmit it if the user retypes it). Non-secret fields
     // (provider/environment) update whenever they're explicitly provided.
+    //
+    // secretKey/webhookSecret are encrypted at rest (see field-encryption.ts).
+    // Only a freshly-submitted plaintext value from the form gets encrypted
+    // here - the `existing` fallback is already-encrypted (or, for rows
+    // saved before encryption was added, legacy plaintext) and is written
+    // straight back unchanged either way.
     const secretIfProvided = (v: string | undefined) => (v ? v : undefined);
+    const encryptedSecretIfProvided = (v: string | undefined) => (v ? encryptSecret(v) : undefined);
 
     const existing = await prisma.paymentProviderConfiguration.findUnique({
       where: { departmentId: params.id },
@@ -83,8 +92,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       provider: parsed.provider ?? existing?.provider ?? "PAYSTACK",
       environment: parsed.environment ?? existing?.environment ?? "TEST",
       publicKey: secretIfProvided(parsed.publicKey) ?? existing?.publicKey ?? null,
-      secretKey: secretIfProvided(parsed.secretKey) ?? existing?.secretKey ?? null,
-      webhookSecret: secretIfProvided(parsed.webhookSecret) ?? existing?.webhookSecret ?? null,
+      secretKey: encryptedSecretIfProvided(parsed.secretKey) ?? existing?.secretKey ?? null,
+      webhookSecret: encryptedSecretIfProvided(parsed.webhookSecret) ?? existing?.webhookSecret ?? null,
       configValue: secretIfProvided(parsed.configValue) ?? existing?.configValue ?? null,
     };
 
@@ -135,6 +144,6 @@ function handleError(err: unknown) {
     // zod error
     return NextResponse.json({ error: "Invalid input", details: (err as any).issues }, { status: 400 });
   }
-  console.error(err);
+  captureError(err);
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 }

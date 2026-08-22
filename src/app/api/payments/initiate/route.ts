@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments/provider-factory";
 import { PENDING_PAYMENT_STALE_AFTER_MS } from "@/lib/payments/constants";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { decryptPaymentSecrets } from "@/lib/crypto/field-encryption";
 import { z } from "zod";
 
 const initiateSchema = z.object({
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest) {
     });
 
     const provider = getPaymentProvider(department.paymentConfig.provider as "PAYSTACK" | "HUBTEL");
+    const paymentConfig = decryptPaymentSecrets(department.paymentConfig);
     const result = await provider.initiatePayment(
       {
         amount,
@@ -151,17 +154,17 @@ export async function POST(req: NextRequest) {
         callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/d/${department.slug}/payment-status?ref=${internalReference}`,
       },
       {
-        publicKey: department.paymentConfig.publicKey,
-        secretKey: department.paymentConfig.secretKey,
-        webhookSecret: department.paymentConfig.webhookSecret,
-        configValue: department.paymentConfig.configValue,
-        environment: department.paymentConfig.environment,
+        publicKey: paymentConfig.publicKey,
+        secretKey: paymentConfig.secretKey,
+        webhookSecret: paymentConfig.webhookSecret,
+        configValue: paymentConfig.configValue,
+        environment: paymentConfig.environment,
       }
     );
 
     return NextResponse.json({ authorizationUrl: result.authorizationUrl, paymentId: pendingPayment.id });
   } catch (err) {
-    console.error(err);
+    captureError(err);
     // Never leak internal error/stack details to the public.
     return NextResponse.json({ error: "Could not initiate payment. Please try again." }, { status: 500 });
   }

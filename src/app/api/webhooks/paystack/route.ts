@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPaymentProvider } from "@/lib/payments/provider-factory";
 import { issueReceiptAndNotify } from "@/lib/receipts";
+import { decryptPaymentSecrets } from "@/lib/crypto/field-encryption";
 
 /**
  * Webhook is the ONLY authoritative source that marks a payment SUCCESS.
@@ -49,12 +50,13 @@ export async function POST(req: NextRequest) {
   }
 
   const provider = getPaymentProvider(department.paymentConfig.provider as "PAYSTACK" | "HUBTEL");
+  const paymentConfig = decryptPaymentSecrets(department.paymentConfig);
 
   const validSignature = provider.verifyWebhookSignature(rawBody, signature, {
-    publicKey: department.paymentConfig.publicKey,
-    secretKey: department.paymentConfig.secretKey,
-    webhookSecret: department.paymentConfig.webhookSecret,
-    environment: department.paymentConfig.environment,
+    publicKey: paymentConfig.publicKey,
+    secretKey: paymentConfig.secretKey,
+    webhookSecret: paymentConfig.webhookSecret,
+    environment: paymentConfig.environment,
   });
 
   if (!validSignature) {
@@ -96,10 +98,10 @@ export async function POST(req: NextRequest) {
   const verified = await provider.verifyTransaction(
     { providerTxId: parsed.providerTxId, internalReference: parsed.internalReference },
     {
-      publicKey: department.paymentConfig.publicKey,
-      secretKey: department.paymentConfig.secretKey,
-      webhookSecret: department.paymentConfig.webhookSecret,
-      environment: department.paymentConfig.environment,
+      publicKey: paymentConfig.publicKey,
+      secretKey: paymentConfig.secretKey,
+      webhookSecret: paymentConfig.webhookSecret,
+      environment: paymentConfig.environment,
     }
   );
 

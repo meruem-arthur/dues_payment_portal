@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { captureError } from "@/lib/monitoring/capture-error";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireSuperAdmin, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
@@ -206,6 +207,6 @@ function handleError(err: unknown) {
     // zod error
     return NextResponse.json({ error: "Invalid input", details: (err as any).issues }, { status: 400 });
   }
-  console.error(err);
+  captureError(err);
   return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
 }

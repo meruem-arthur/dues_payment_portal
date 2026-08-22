@@ -2,6 +2,16 @@ import { type AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { checkRateLimit, getClientIpFromHeaderRecord } from "@/lib/rate-limit";
+
+// Login is throttled per-IP: 5 attempts / 10 minutes. This is the only
+// unauthenticated, unthrottled-until-now entry point into admin accounts -
+// nothing previously stopped scripted password guessing against
+// e.g. superadmin@umat.test. A generic "Too many attempts" message is
+// thrown (not "wrong password" vs "rate limited" - that distinction alone
+// would leak whether an email exists) once the limit is hit.
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 5;
+const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 
 export const authOptions: AuthOptions = {
   session: { strategy: "jwt" },
@@ -13,7 +23,13 @@ export const authOptions: AuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
+        const ip = getClientIpFromHeaderRecord(req?.headers as Record<string, string | string[] | undefined> | undefined);
+        const rateLimit = checkRateLimit(`login:${ip}`, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, LOGIN_RATE_LIMIT_WINDOW_MS);
+        if (!rateLimit.allowed) {
+          throw new Error("Too many login attempts. Please wait a few minutes and try again.");
+        }
+
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
