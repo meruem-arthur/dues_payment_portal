@@ -196,7 +196,7 @@ export function DepartmentFilterDashboard({ departments }: { departments: Depart
                       <Cell key={status} fill={STATUS_COLORS[status]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: "#15111f", border: "1px solid #2a2338", borderRadius: 8 }} />
+                  <Tooltip contentStyle={{ background: "#FFD700", border: "1px solid #2a2338", borderRadius: 8 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="mt-2 space-y-1.5">
