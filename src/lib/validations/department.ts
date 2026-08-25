@@ -135,6 +135,16 @@ export const smsConfigUpdateSchema = z.object({
 
 export type SmsConfigUpdateInput = z.infer<typeof smsConfigUpdateSchema>;
 
+export const emailConfigUpdateSchema = z.object({
+  // Allow clearing back to the account-wide EMAIL_FROM_ADDRESS fallback
+  // with an explicit empty string, same reasoning as senderId above.
+  fromAddress: z.union([z.string().trim().email(), z.literal("")]).optional(),
+  emailTemplate: z.string().trim().min(1).max(2000).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export type EmailConfigUpdateInput = z.infer<typeof emailConfigUpdateSchema>;
+
 // Logo update for an already-created department (PATCH .../[id] with
 // action: "update_logo"). logoUrl: null explicitly clears the logo -
 // omitting the field entirely is a validation error so the intent is

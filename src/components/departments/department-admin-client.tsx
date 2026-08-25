@@ -120,12 +120,25 @@ type SmsConfig = {
   updatedAt?: string;
 };
 
+type EmailConfig = {
+  fromAddress: string;
+  emailTemplate: string;
+  enabled: boolean;
+  updatedAt?: string;
+};
+
 const emptySmsForm = {
   senderId: "",
   messageTemplate: "",
   username: "",
   apiKey: "",
   enabled: true,
+};
+
+const emptyEmailForm = {
+  fromAddress: "",
+  emailTemplate: "",
+  enabled: false,
 };
 
 const emptyPaymentForm = {
@@ -213,6 +226,13 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [smsSaved, setSmsSaved] = useState(false);
+
+  const [emailSettingsDept, setEmailSettingsDept] = useState<Department | null>(null);
+  const [emailForm, setEmailForm] = useState(emptyEmailForm);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSaved, setEmailSaved] = useState(false);
 
   const shown = departments.filter((d) => (tab === "active" ? d.status === "ACTIVE" : d.status === "ARCHIVED"));
 
@@ -628,6 +648,76 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     }
   }
 
+  async function openEmailSettings(dept: Department) {
+    setEmailSettingsDept(dept);
+    setEmailForm(emptyEmailForm);
+    setEmailError(null);
+    setEmailSaved(false);
+    setEmailLoading(true);
+    try {
+      const res = await fetch(`/api/departments/${dept.id}/email-config`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEmailError(data.error ?? "Could not load email configuration");
+        return;
+      }
+      const config: EmailConfig | null = data.config;
+      if (config) {
+        setEmailForm({
+          fromAddress: config.fromAddress,
+          emailTemplate: config.emailTemplate,
+          enabled: config.enabled,
+        });
+      }
+    } finally {
+      setEmailLoading(false);
+    }
+  }
+
+  function closeEmailSettings() {
+    setEmailSettingsDept(null);
+    setEmailForm(emptyEmailForm);
+    setEmailError(null);
+    setEmailSaved(false);
+  }
+
+  async function saveEmailSettings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailSettingsDept) return;
+    setEmailError(null);
+    setEmailSaved(false);
+    setEmailSaving(true);
+    try {
+      const body: Record<string, string | boolean> = { enabled: emailForm.enabled };
+      // fromAddress is sent whenever the field has content OR was just
+      // cleared to blank (an explicit "" clears back to the account-wide
+      // EMAIL_FROM_ADDRESS fallback - see email-config/route.ts) - only
+      // skip it if the loaded config was already blank and stays blank.
+      body.fromAddress = emailForm.fromAddress.trim();
+      if (emailForm.emailTemplate.trim()) body.emailTemplate = emailForm.emailTemplate.trim();
+
+      const res = await fetch(`/api/departments/${emailSettingsDept.id}/email-config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEmailError(data.error ?? "Could not save email configuration");
+        return;
+      }
+      const config: EmailConfig = data.config;
+      setEmailForm({
+        fromAddress: config.fromAddress,
+        emailTemplate: config.emailTemplate,
+        enabled: config.enabled,
+      });
+      setEmailSaved(true);
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -684,6 +774,9 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
 
               <button className="text-sm text-sky-400 hover:underline" onClick={() => openSmsSettings(d)}>
                 SMS Settings
+              </button>
+              <button className="text-sm text-sky-400 hover:underline" onClick={() => openEmailSettings(d)}>
+                Email Settings
               </button>
 
               <button className="text-sm text-sky-400 hover:underline" onClick={() => openLogoEditor(d)}>
@@ -951,6 +1044,85 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
               <button type="submit" className="admin-btn-primary flex items-center justify-center gap-2" disabled={smsLoading || smsSaving}>
                 {smsSaving && <Spinner />}
                 {smsSaving ? "Saving..." : "Save SMS Settings"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {emailSettingsDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+          <form onSubmit={saveEmailSettings} className="admin-card my-8 w-full max-w-lg space-y-5 p-6">
+            <div>
+              <h2 className="text-lg font-semibold">Email Settings</h2>
+              <p className="text-sm text-muted">{emailSettingsDept.name}</p>
+            </div>
+
+            {emailError && <p className="rounded-md bg-red-950 px-3 py-2 text-sm text-red-400">{emailError}</p>}
+            {emailSaved && !emailError && (
+              <p className="rounded-md bg-emerald-950 px-3 py-2 text-sm text-emerald-400">
+                Email configuration saved.
+              </p>
+            )}
+
+            {emailLoading ? (
+              <p className="text-sm text-muted">Loading current configuration...</p>
+            ) : (
+              <Section title="Email Receipts">
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm text-muted">Send email receipts</label>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={emailForm.enabled}
+                    onChange={(e) => setEmailForm({ ...emailForm, enabled: e.target.checked })}
+                  />
+                </div>
+                <p className="text-xs text-muted col-span-2">
+                  Only sends when a student also has an email on file - it's an optional field collected at checkout,
+                  so not every payment will trigger one even with this turned on.
+                </p>
+
+                <TextField
+                  label="From address (optional)"
+                  value={emailForm.fromAddress}
+                  onChange={(v) => setEmailForm({ ...emailForm, fromAddress: v })}
+                  placeholder="Leave blank to use the account default sender"
+                />
+                <p className="text-xs text-muted col-span-2">
+                  Must be a sender verified in the Brevo dashboard, or sends will fail. Leave blank to send from the
+                  account-wide default sender (set via EMAIL_FROM_ADDRESS/EMAIL_FROM_NAME) instead of a
+                  department-specific one.
+                </p>
+
+                <div className="space-y-1 col-span-2">
+                  <label className="text-sm text-muted">Receipt Email Template</label>
+                  <textarea
+                    className="admin-input resize-y"
+                    value={emailForm.emailTemplate}
+                    onChange={(e) => setEmailForm({ ...emailForm, emailTemplate: e.target.value })}
+                    placeholder="Leave blank to keep the current template"
+                    rows={5}
+                  />
+                  <p className="text-xs text-muted">
+                    Placeholders: {"{name} {reference} {amount} {department} {receipt}"} - independent of the SMS
+                    template above, so this can read completely differently if you want it to.
+                  </p>
+                </div>
+              </Section>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="admin-btn-secondary" onClick={closeEmailSettings}>
+                Close
+              </button>
+              <button
+                type="submit"
+                className="admin-btn-primary flex items-center justify-center gap-2"
+                disabled={emailLoading || emailSaving}
+              >
+                {emailSaving && <Spinner />}
+                {emailSaving ? "Saving..." : "Save Email Settings"}
               </button>
             </div>
           </form>
