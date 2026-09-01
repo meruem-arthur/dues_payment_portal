@@ -5,11 +5,15 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { DepartmentFilterDashboard } from "@/components/admin/department-filter-dashboard";
 import { RefreshButton } from "@/components/admin/refresh-button";
+import { NotificationFailuresAlert } from "@/components/admin/notification-failures-alert";
+import { getRecentNotificationFailures } from "@/lib/notification-failures";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
   const user = session.user as any;
+
+  const notificationFailures = await getRecentNotificationFailures(user);
 
   if (user.role === "SUPER_ADMIN") {
     const departments = await prisma.department.findMany({
@@ -21,6 +25,7 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Dashboard" subtitle="Select a department to view its live payment monitoring" />
+        <NotificationFailuresAlert failures={notificationFailures} showDepartmentName />
 
         {departments.length === 0 ? (
           <EmptyStateCard message="No departments found" ctaLabel="Create First Department" ctaHref="/departments" />
@@ -38,6 +43,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={department?.name ?? "Department"} subtitle="Live payment monitoring & control" />
+      <NotificationFailuresAlert failures={notificationFailures} showDepartmentName={false} />
       <DepartmentFilterDashboard departments={department ? [{ id: department.id, name: department.name }] : []} />
       <Link href="/students" className="admin-btn-secondary">Manage Students</Link>
     </div>

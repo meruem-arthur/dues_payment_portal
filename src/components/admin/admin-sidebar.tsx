@@ -8,6 +8,7 @@ import {
   CalendarRange,
   Building2,
   Users,
+  Settings,
   LogOut,
   Zap,
   Menu,
@@ -22,6 +23,7 @@ const navItems: NavItem[] = [
   { href: "/sessions", label: "Academic Sessions", icon: <CalendarRange size={18} />, superAdminOnly: true },
   { href: "/departments", label: "Departments", icon: <Building2 size={18} />, superAdminOnly: true },
   { href: "/students", label: "Students", icon: <Users size={18} /> },
+  { href: "/settings", label: "Account Settings", icon: <Settings size={18} /> },
 ];
 
 export function AdminSidebar({ userName, role }: { userName: string; role: string }) {
