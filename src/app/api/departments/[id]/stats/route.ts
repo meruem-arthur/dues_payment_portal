@@ -66,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       else if (row.paymentStatus === "PENDING") entry.pending += row._count._all;
       levelMap.set(row.level, entry);
     }
-    const LEVEL_ORDER = ["L100", "L200", "L300", "L400", "L500", "L600"];
+    const LEVEL_ORDER = ["L100", "L200", "L300", "L400"];
     const levelBreakdown = LEVEL_ORDER.filter((l) => levelMap.has(l)).map((level) => ({
       level,
       ...levelMap.get(level)!,

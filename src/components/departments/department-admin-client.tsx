@@ -24,15 +24,15 @@ type StagedStudent = {
   fullName: string;
   referenceNumber: string;
   studentIndexNo: string;
-  level: "L100" | "L200" | "L300" | "L400" | "L500" | "L600";
+  level: "L100" | "L200" | "L300" | "L400";
   phone: string;
   email: string;
 };
 
-const LEVELS = ["L100", "L200", "L300", "L400", "L500", "L600"] as const;
+const LEVELS = ["L100", "L200", "L300", "L400"] as const;
 const LEVEL_MAP: Record<string, StagedStudent["level"]> = {
-  "100": "L100", "200": "L200", "300": "L300", "400": "L400", "500": "L500", "600": "L600",
-  L100: "L100", L200: "L200", L300: "L300", L400: "L400", L500: "L500", L600: "L600",
+  "100": "L100", "200": "L200", "300": "L300", "400": "L400",
+  L100: "L100", L200: "L200", L300: "L300", L400: "L400",
 };
 
 // Shared by the create-department logo picker and the per-department
@@ -1342,7 +1342,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 </button>
               </div>
               <p className="text-xs text-muted">
-                Columns: name, reference_number, student_id (optional), level (100-600 or L100-L600), phone, email
+                Columns: name, reference_number, student_id (optional), level (100-400 or L100-L400), phone, email
                 (optional). name, reference_number, level and phone are required for each row.
               </p>
 

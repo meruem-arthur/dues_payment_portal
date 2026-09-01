@@ -7,8 +7,8 @@ import { studentCsvRowSchema } from "@/lib/validations/student";
 import { logAudit } from "@/lib/audit";
 
 const LEVEL_MAP: Record<string, string> = {
-  "100": "L100", "200": "L200", "300": "L300", "400": "L400", "500": "L500", "600": "L600",
-  L100: "L100", L200: "L200", L300: "L300", L400: "L400", L500: "L500", L600: "L600",
+  "100": "L100", "200": "L200", "300": "L300", "400": "L400",
+  L100: "L100", L200: "L200", L300: "L300", L400: "L400",
 };
 
 /**

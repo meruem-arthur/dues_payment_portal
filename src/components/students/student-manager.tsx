@@ -148,7 +148,7 @@ export function StudentManager({
         />
         <select className="admin-input max-w-[140px]" value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
           <option value="">All Levels</option>
-          {["L100", "L200", "L300", "L400", "L500", "L600"].map((l) => (
+          {["L100", "L200", "L300", "L400"].map((l) => (
             <option key={l} value={l}>{l.replace("L", "Level ")}</option>
           ))}
         </select>
@@ -275,7 +275,7 @@ function StudentFields({
       <div className="space-y-1">
         <label className="text-sm text-muted">Level</label>
         <select className="admin-input" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
-          {["L100", "L200", "L300", "L400", "L500", "L600"].map((l) => (
+          {["L100", "L200", "L300", "L400"].map((l) => (
             <option key={l} value={l}>{l.replace("L", "Level ")}</option>
           ))}
         </select>

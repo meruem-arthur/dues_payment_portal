@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     // A student's true payment type is derived from their level, never from
     // whichever link/QR they happened to click. L100 = Fresher, everything
-    // else (L200-L600) = Continuing. Reject before any payment record or
+    // else (L200-L400) = Continuing. Reject before any payment record or
     // provider call is made, since we don't do refunds.
     const expectedPaymentType = student.level === "L100" ? "FRESHER" : "CONTINUING";
     if (input.paymentType !== expectedPaymentType) {

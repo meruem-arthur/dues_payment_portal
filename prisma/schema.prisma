@@ -62,8 +62,6 @@ enum StudentLevel {
   L200
   L300
   L400
-  L500
-  L600
 }
 
 enum PaymentStatus {

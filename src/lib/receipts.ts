@@ -76,7 +76,7 @@ async function sendSmsReceipt(
   const smsConfig = payment.department.smsConfig;
   if (!smsConfig || !smsConfig.enabled) return;
 
-  // Student.level is stored as "L100".."L600" (see prisma schema) - drop
+  // Student.level is stored as "L100".."L400" (see prisma schema) - drop
   // the leading "L" so the SMS reads "Level : 300" as requested, not "L300".
   const levelDisplay = payment.student.level.replace(/^L/, "");
 
