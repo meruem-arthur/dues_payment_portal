@@ -77,8 +77,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // Require the caller to retype the department name before archiving -
       // matches the confirmation dialog on the frontend, and re-checked here
       // rather than trusted purely client-side.
-      const confirmName = body?.confirmName;
-      if (confirmName !== department.name) {
+      const confirmName = typeof body?.confirmName === "string" ? body.confirmName.trim() : body?.confirmName;
+      if (confirmName !== department.name.trim()) {
         return NextResponse.json(
           { error: "Confirmation text did not match the department name" },
           { status: 400 }

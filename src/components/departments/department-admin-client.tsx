@@ -180,6 +180,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [submitting, setSubmitting] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoDept, setLogoDept] = useState<Department | null>(null);
@@ -404,17 +405,22 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   }
 
   async function confirmArchive(dept: Department) {
-    if (confirmText !== dept.name) return;
+    if (confirmText.trim() !== dept.name.trim()) return;
+    setArchiveError(null);
     const res = await fetch(`/api/departments/${dept.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "archive", confirmName: confirmText }),
+      body: JSON.stringify({ action: "archive", confirmName: confirmText.trim() }),
     });
-    if (res.ok) {
-      setArchivingId(null);
-      setConfirmText("");
-      router.refresh();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setArchiveError(data.error ?? "Could not archive department");
+      return;
     }
+    setArchivingId(null);
+    setConfirmText("");
+    setArchiveError(null);
+    router.refresh();
   }
 
   async function restore(dept: Department) {
@@ -793,7 +799,14 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
               </button>
 
               {d.status === "ACTIVE" ? (
-                <button className="text-sm text-red-400 hover:underline" onClick={() => setArchivingId(d.id)}>
+                <button
+                  className="text-sm text-red-400 hover:underline"
+                  onClick={() => {
+                    setArchivingId(d.id);
+                    setConfirmText("");
+                    setArchiveError(null);
+                  }}
+                >
                   Archive Department
                 </button>
               ) : (
@@ -817,13 +830,19 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                 />
+                {archiveError && (
+                  <p className="text-xs font-medium text-red-400">{archiveError}</p>
+                )}
                 <div className="flex gap-2">
-                  <button className="admin-btn-secondary" onClick={() => { setArchivingId(null); setConfirmText(""); }}>
+                  <button
+                    className="admin-btn-secondary"
+                    onClick={() => { setArchivingId(null); setConfirmText(""); setArchiveError(null); }}
+                  >
                     Cancel
                   </button>
                   <button
                     className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-                    disabled={confirmText !== d.name}
+                    disabled={confirmText.trim() !== d.name.trim()}
                     onClick={() => confirmArchive(d)}
                   >
                     Archive Department

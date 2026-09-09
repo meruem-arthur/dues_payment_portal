@@ -2,7 +2,7 @@ import { z } from "zod";
 import { studentLevelEnum } from "./student";
 
 export const departmentSchema = z.object({
-  name: z.string().min(2),
+  name: z.string().trim().min(2),
   code: z.string().min(2).max(10),
   slug: z
     .string()
@@ -56,7 +56,7 @@ export const initialStudentSchema = z.object({
 });
 
 export const departmentCreateSchema = z.object({
-  name: z.string().min(2, "Department name is required"),
+  name: z.string().trim().min(2, "Department name is required"),
   code: z.string().min(2).max(10, "Department code must be 10 characters or fewer"),
   slug: z
     .string()
