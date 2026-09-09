@@ -43,7 +43,20 @@ export async function GET(req: NextRequest) {
       take: 500,
     });
 
-    return NextResponse.json({ students });
+    // Flag which of these students currently has a PENDING payment sitting
+    // against them - this is what the "Cancel Pending Payment" action in
+    // the admin UI keys off of, so it's only offered where it applies.
+    const pendingPayments = await prisma.payment.findMany({
+      where: { studentId: { in: students.map((s: { id: string }) => s.id) }, status: "PENDING" },
+      select: { studentId: true },
+    });
+    const studentIdsWithPending = new Set(pendingPayments.map((p: { studentId: string }) => p.studentId));
+    const studentsWithPendingFlag = students.map((s: { id: string }) => ({
+      ...s,
+      hasPendingPayment: studentIdsWithPending.has(s.id),
+    }));
+
+    return NextResponse.json({ students: studentsWithPendingFlag });
   } catch (err) {
     return handleError(err);
   }

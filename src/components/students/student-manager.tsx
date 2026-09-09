@@ -13,6 +13,7 @@ type Student = {
   phone: string;
   email: string | null;
   paymentStatus: string;
+  hasPendingPayment: boolean;
 };
 
 const emptyForm = {
@@ -119,6 +120,32 @@ export function StudentManager({
     fetchStudents();
   }
 
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<{ id: string; text: string } | null>(null);
+
+  async function cancelPendingPayment(student: Student) {
+    if (
+      !confirm(
+        `Cancel ${student.fullName}'s in-progress payment? Only do this if you've confirmed it didn't actually go through - this lets them start a fresh payment immediately instead of waiting.`
+      )
+    ) {
+      return;
+    }
+    setCancellingId(student.id);
+    setCancelError(null);
+    try {
+      const res = await fetch(`/api/students/${student.id}/cancel-pending-payment`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCancelError({ id: student.id, text: data.error ?? "Could not cancel the pending payment" });
+        return;
+      }
+      fetchStudents();
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   async function submitAdd(e: React.FormEvent) {
     e.preventDefault();
     setAddError(null);
@@ -198,11 +225,31 @@ export function StudentManager({
                 <td className="p-3">{s.level.replace("L", "")}</td>
                 <td className="p-3">{s.phone}</td>
                 <td className="p-3">
-                  <span className={s.paymentStatus === "SUCCESS" ? "text-accent" : "text-muted"}>
-                    {s.paymentStatus === "SUCCESS" ? "PAID" : "UNPAID"}
+                  <span
+                    className={
+                      s.paymentStatus === "SUCCESS"
+                        ? "text-accent"
+                        : s.hasPendingPayment
+                          ? "text-amber-400"
+                          : "text-muted"
+                    }
+                  >
+                    {s.paymentStatus === "SUCCESS" ? "PAID" : s.hasPendingPayment ? "PENDING" : "UNPAID"}
                   </span>
+                  {cancelError?.id === s.id && (
+                    <p className="mt-1 text-xs text-red-400">{cancelError.text}</p>
+                  )}
                 </td>
                 <td className="space-x-2 p-3 text-right">
+                  {s.paymentStatus !== "SUCCESS" && s.hasPendingPayment && (
+                    <button
+                      className="text-amber-400 hover:underline disabled:opacity-50"
+                      onClick={() => cancelPendingPayment(s)}
+                      disabled={cancellingId === s.id}
+                    >
+                      {cancellingId === s.id ? "Cancelling..." : "Cancel Pending Payment"}
+                    </button>
+                  )}
                   <button className="text-accent hover:underline" onClick={() => openEditDialog(s)}>Edit</button>
                   <button className="text-red-400 hover:underline" onClick={() => deleteStudent(s.id)}>Delete</button>
                 </td>
