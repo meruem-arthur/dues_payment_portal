@@ -137,30 +137,48 @@ export async function POST(req: NextRequest) {
 
     const provider = getPaymentProvider(department.paymentConfig.provider as "PAYSTACK" | "HUBTEL");
     const paymentConfig = decryptPaymentSecrets(department.paymentConfig);
-    const result = await provider.initiatePayment(
-      {
-        amount,
-        currency: "GHS",
-        email: input.email,
-        phone: input.phone,
-        internalReference,
-        metadata: {
-          studentReference: student.referenceNumber,
-          departmentId: department.id,
-          academicSessionId: department.academicSessionId,
-          studentId: student.id,
-          paymentType: input.paymentType,
+
+    // The PENDING row above is committed before we ever talk to the
+    // provider, so a failure past this point must not leave it behind as a
+    // fake "in progress" payment - that's what was blocking retries with
+    // "You already have a payment in progress" even though nothing was
+    // actually in progress on Paystack/Hubtel's side. Any throw from here
+    // is caught, the row is flipped to FAILED so the guard above stops
+    // seeing it, and the ORIGINAL error still propagates to the outer
+    // catch so the response and logging behavior are unchanged.
+    let result;
+    try {
+      result = await provider.initiatePayment(
+        {
+          amount,
+          currency: "GHS",
+          email: input.email,
+          phone: input.phone,
+          internalReference,
+          metadata: {
+            studentReference: student.referenceNumber,
+            departmentId: department.id,
+            academicSessionId: department.academicSessionId,
+            studentId: student.id,
+            paymentType: input.paymentType,
+          },
+          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/d/${department.slug}/payment-status?ref=${internalReference}`,
         },
-        callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/d/${department.slug}/payment-status?ref=${internalReference}`,
-      },
-      {
-        publicKey: paymentConfig.publicKey,
-        secretKey: paymentConfig.secretKey,
-        webhookSecret: paymentConfig.webhookSecret,
-        configValue: paymentConfig.configValue,
-        environment: paymentConfig.environment,
-      }
-    );
+        {
+          publicKey: paymentConfig.publicKey,
+          secretKey: paymentConfig.secretKey,
+          webhookSecret: paymentConfig.webhookSecret,
+          configValue: paymentConfig.configValue,
+          environment: paymentConfig.environment,
+        }
+      );
+    } catch (providerErr) {
+      await prisma.payment.update({
+        where: { id: pendingPayment.id },
+        data: { status: "FAILED" },
+      });
+      throw providerErr;
+    }
 
     return NextResponse.json({ authorizationUrl: result.authorizationUrl, paymentId: pendingPayment.id });
   } catch (err) {
