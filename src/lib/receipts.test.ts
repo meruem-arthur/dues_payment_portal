@@ -31,10 +31,21 @@ const successPayment = {
   id: "payment_1",
   studentId: "student_1",
   amount: { toString: () => "100" }, // Number() on this works via toString below (see toNumberish note)
+  currency: "GHS",
+  paymentType: "CONTINUING",
+  provider: "PAYSTACK",
+  paidAt: new Date("2026-09-13T09:00:00Z"),
   status: "SUCCESS",
   student: { fullName: "Kwame Mensah", referenceNumber: "REF001", phone: "0551234567", level: "L300", email: "kwame@example.com" },
+  academicSession: { name: "2026/2027" },
   department: {
     name: "Ceramic Engineering",
+    logoUrl: null,
+    stampUrl: null,
+    financialSecretaryName: null,
+    financialSecretarySignatureUrl: null,
+    presidentName: null,
+    presidentSignatureUrl: null,
     smsConfig: {
       enabled: true,
       senderId: "UMAT",
@@ -68,7 +79,9 @@ beforeEach(() => {
   mockedPrisma.notificationLog.create.mockResolvedValue({} as any);
 
   txMock = {
-    receipt: { create: vi.fn().mockResolvedValue({ id: "receipt_1", receiptNumber: "REC-2026-000006" }) },
+    receipt: {
+      create: vi.fn().mockResolvedValue({ id: "receipt_1", receiptNumber: "REC-2026-000006", issuedAt: new Date("2026-09-13T09:00:00Z") }),
+    },
     student: { update: vi.fn().mockResolvedValue({}) },
   };
   mockedPrisma.$transaction.mockImplementation(async (cb: any) => cb(txMock));
@@ -156,6 +169,9 @@ describe("issueReceiptAndNotify", () => {
     expect(sentEmail.body).toContain("GHS 100");
     expect(sentEmail.body).toContain("REC-2026-000006");
     expect(sentEmail.from).toBe("dues@umat.edu.gh");
+    expect(sentEmail.attachments).toHaveLength(1);
+    expect(sentEmail.attachments[0].filename).toBe("REC-2026-000006.pdf");
+    expect(sentEmail.attachments[0].content).toBeInstanceOf(Buffer);
   });
 
   it("does not send an email when the department's email config is disabled", async () => {

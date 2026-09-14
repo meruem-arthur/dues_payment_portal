@@ -16,6 +16,11 @@ type Department = {
   fresherAmount: number;
   continuingAmount: number;
   logoUrl?: string | null;
+  stampUrl?: string | null;
+  financialSecretaryName?: string | null;
+  financialSecretarySignatureUrl?: string | null;
+  presidentName?: string | null;
+  presidentSignatureUrl?: string | null;
   academicSession: Session;
   _count: { students: number };
 };
@@ -35,10 +40,9 @@ const LEVEL_MAP: Record<string, StagedStudent["level"]> = {
   L100: "L100", L200: "L200", L300: "L300", L400: "L400",
 };
 
-// Shared by the create-department logo picker and the per-department
-// "Edit Logo" dialog. Downscales to a small square so every department
-// logo renders consistently at the size it's actually shown at, and so
-// the stored data URL stays small regardless of the source file.
+// Used for the "Edit Logo" dialogs above - crops to a square so a logo
+// renders consistently as a circular badge regardless of the source image's
+// aspect ratio.
 function resizeLogoFile(
   file: File,
   { onSuccess, onError }: { onSuccess: (dataUrl: string) => void; onError: (msg: string) => void }
@@ -69,6 +73,55 @@ function resizeLogoFile(
       const w = img.width * scale;
       const h = img.height * scale;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      const dataUrl = canvas.toDataURL("image/png");
+      if (dataUrl.length > 700_000) {
+        onError("Image is too large even after resizing - try a simpler image");
+        return;
+      }
+      onSuccess(dataUrl);
+    };
+    img.onerror = () => onError("Could not read that image");
+    img.src = reader.result as string;
+  };
+  reader.onerror = () => onError("Could not read that file");
+  reader.readAsDataURL(file);
+}
+
+// Used for the receipt branding dialog (stamp + signatures) below. Unlike
+// the logo, these are naturally wide/rectangular (a signature scrawl, a
+// round-but-not-square stamp) - cropping them to a square would cut real
+// content off. This instead scales down to fit within a bounding box while
+// keeping the original aspect ratio, so nothing is cropped.
+function resizeBrandingImage(
+  file: File,
+  { onSuccess, onError }: { onSuccess: (dataUrl: string) => void; onError: (msg: string) => void }
+) {
+  if (!file.type.startsWith("image/")) {
+    onError("Please choose an image file");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    onError("Image is too large (max 5MB)");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 400;
+      const scale = Math.min(1, maxDim / img.width, maxDim / img.height);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        onError("Could not process image");
+        return;
+      }
+      ctx.drawImage(img, 0, 0, w, h);
       const dataUrl = canvas.toDataURL("image/png");
       if (dataUrl.length > 700_000) {
         onError("Image is too large even after resizing - try a simpler image");
@@ -188,6 +241,75 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [logoDeptError, setLogoDeptError] = useState<string | null>(null);
   const [logoSaving, setLogoSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Receipt branding dialog - stamp + 2 signatures + printed names, all
+  // saved together in one PATCH (action: "update_receipt_branding"). Same
+  // "null clears it" convention as the logo editor above.
+  const [brandingDept, setBrandingDept] = useState<Department | null>(null);
+  const [brandingDraft, setBrandingDraft] = useState({
+    stampUrl: null as string | null,
+    financialSecretaryName: "",
+    financialSecretarySignatureUrl: null as string | null,
+    presidentName: "",
+    presidentSignatureUrl: null as string | null,
+  });
+  const [brandingError, setBrandingError] = useState<string | null>(null);
+  const [brandingSaving, setBrandingSaving] = useState(false);
+
+  function openBrandingEditor(dept: Department) {
+    setBrandingDept(dept);
+    setBrandingDraft({
+      stampUrl: dept.stampUrl ?? null,
+      financialSecretaryName: dept.financialSecretaryName ?? "",
+      financialSecretarySignatureUrl: dept.financialSecretarySignatureUrl ?? null,
+      presidentName: dept.presidentName ?? "",
+      presidentSignatureUrl: dept.presidentSignatureUrl ?? null,
+    });
+    setBrandingError(null);
+  }
+
+  function closeBrandingEditor() {
+    setBrandingDept(null);
+    setBrandingError(null);
+  }
+
+  function handleBrandingImageFile(field: "stampUrl" | "financialSecretarySignatureUrl" | "presidentSignatureUrl", file: File | null) {
+    setBrandingError(null);
+    if (!file) return;
+    resizeBrandingImage(file, {
+      onSuccess: (dataUrl) => setBrandingDraft((d) => ({ ...d, [field]: dataUrl })),
+      onError: setBrandingError,
+    });
+  }
+
+  async function saveBranding() {
+    if (!brandingDept) return;
+    setBrandingSaving(true);
+    setBrandingError(null);
+    try {
+      const res = await fetch(`/api/departments/${brandingDept.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_receipt_branding",
+          stampUrl: brandingDraft.stampUrl,
+          financialSecretaryName: brandingDraft.financialSecretaryName || null,
+          financialSecretarySignatureUrl: brandingDraft.financialSecretarySignatureUrl,
+          presidentName: brandingDraft.presidentName || null,
+          presidentSignatureUrl: brandingDraft.presidentSignatureUrl,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBrandingError(data.error ?? "Could not save receipt branding");
+        return;
+      }
+      closeBrandingEditor();
+      router.refresh();
+    } finally {
+      setBrandingSaving(false);
+    }
+  }
 
   // Stale-pending-payment cleanup ("Expire Stale Pending" button below) -
   // tracks which department is currently sweeping and the last result per
@@ -789,6 +911,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 {d.logoUrl ? "Edit Logo" : "Add Logo"}
               </button>
 
+              <button className="text-sm text-sky-400 hover:underline" onClick={() => openBrandingEditor(d)}>
+                Receipt Branding
+              </button>
+
               <button
                 className="text-sm text-amber-400 hover:underline disabled:opacity-50"
                 onClick={() => expireStalePending(d)}
@@ -1194,6 +1320,143 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
               >
                 {logoSaving && <Spinner />}
                 {logoSaving ? "Saving..." : "Save Logo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {brandingDept && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
+          <div className="admin-card my-8 w-full max-w-lg space-y-4 p-6">
+            <h2 className="text-lg font-semibold">Receipt Branding</h2>
+            <p className="text-sm text-muted">
+              {brandingDept.name} - shown at the bottom of the PDF receipt attached to payment confirmation emails.
+            </p>
+
+            {brandingError && <p className="text-xs text-red-400">{brandingError}</p>}
+
+            <div className="space-y-1">
+              <label className="text-sm text-muted">Department Stamp</label>
+              <div className="flex items-center gap-3">
+                {brandingDraft.stampUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={brandingDraft.stampUrl} alt="Stamp preview" className="h-16 w-16 rounded border border-[#2a2338] object-contain bg-white" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-[#2a2338] text-[10px] text-muted">
+                    No stamp
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    onChange={(e) => handleBrandingImageFile("stampUrl", e.target.files?.[0] ?? null)}
+                  />
+                  {brandingDraft.stampUrl && (
+                    <button type="button" className="text-xs text-red-400 underline" onClick={() => setBrandingDraft((d) => ({ ...d, stampUrl: null }))}>
+                      Remove stamp
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1 border-t border-[#2a2338] pt-4">
+              <label className="text-sm text-muted">Financial Secretary Signature</label>
+              <div className="flex items-center gap-3">
+                {brandingDraft.financialSecretarySignatureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={brandingDraft.financialSecretarySignatureUrl}
+                    alt="Financial Secretary signature preview"
+                    className="h-14 w-24 rounded border border-[#2a2338] object-contain bg-white"
+                  />
+                ) : (
+                  <div className="flex h-14 w-24 items-center justify-center rounded border border-dashed border-[#2a2338] text-[10px] text-muted">
+                    No signature
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    onChange={(e) => handleBrandingImageFile("financialSecretarySignatureUrl", e.target.files?.[0] ?? null)}
+                  />
+                  {brandingDraft.financialSecretarySignatureUrl && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-400 underline"
+                      onClick={() => setBrandingDraft((d) => ({ ...d, financialSecretarySignatureUrl: null }))}
+                    >
+                      Remove signature
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                className="admin-input mt-1"
+                placeholder="Printed name shown under the signature (e.g. Ama Boateng)"
+                value={brandingDraft.financialSecretaryName}
+                onChange={(e) => setBrandingDraft((d) => ({ ...d, financialSecretaryName: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1 border-t border-[#2a2338] pt-4">
+              <label className="text-sm text-muted">President Signature</label>
+              <div className="flex items-center gap-3">
+                {brandingDraft.presidentSignatureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={brandingDraft.presidentSignatureUrl}
+                    alt="President signature preview"
+                    className="h-14 w-24 rounded border border-[#2a2338] object-contain bg-white"
+                  />
+                ) : (
+                  <div className="flex h-14 w-24 items-center justify-center rounded border border-dashed border-[#2a2338] text-[10px] text-muted">
+                    No signature
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    onChange={(e) => handleBrandingImageFile("presidentSignatureUrl", e.target.files?.[0] ?? null)}
+                  />
+                  {brandingDraft.presidentSignatureUrl && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-400 underline"
+                      onClick={() => setBrandingDraft((d) => ({ ...d, presidentSignatureUrl: null }))}
+                    >
+                      Remove signature
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                className="admin-input mt-1"
+                placeholder="Printed name shown under the signature (e.g. Kwame Owusu)"
+                value={brandingDraft.presidentName}
+                onChange={(e) => setBrandingDraft((d) => ({ ...d, presidentName: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="admin-btn-secondary" onClick={closeBrandingEditor} disabled={brandingSaving}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="admin-btn-primary flex items-center justify-center gap-2"
+                onClick={saveBranding}
+                disabled={brandingSaving}
+              >
+                {brandingSaving && <Spinner />}
+                {brandingSaving ? "Saving..." : "Save Receipt Branding"}
               </button>
             </div>
           </div>

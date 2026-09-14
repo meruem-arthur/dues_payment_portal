@@ -159,6 +159,29 @@ export const departmentLogoUpdateSchema = z.object({
 
 export type DepartmentLogoUpdateInput = z.infer<typeof departmentLogoUpdateSchema>;
 
+// Receipt branding update for an already-created department (PATCH
+// .../[id] with action: "update_receipt_branding"). Same "explicit null
+// clears it" convention as departmentLogoUpdateSchema - every field is
+// optional so the dialog can save just the fields it touched, but a field
+// that IS sent as null explicitly clears that piece of branding rather
+// than being ignored.
+const brandingImageField = z
+  .string()
+  .refine((v) => v.startsWith("data:image/"), "Must be an image")
+  .refine((v) => v.length < 700_000, "Image is too large")
+  .nullable()
+  .optional();
+
+export const departmentReceiptBrandingUpdateSchema = z.object({
+  stampUrl: brandingImageField,
+  financialSecretaryName: z.string().trim().max(200).nullable().optional(),
+  financialSecretarySignatureUrl: brandingImageField,
+  presidentName: z.string().trim().max(200).nullable().optional(),
+  presidentSignatureUrl: brandingImageField,
+});
+
+export type DepartmentReceiptBrandingUpdateInput = z.infer<typeof departmentReceiptBrandingUpdateSchema>;
+
 export const departmentAdminSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),

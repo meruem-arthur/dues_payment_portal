@@ -3,7 +3,7 @@ import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireSuperAdmin, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { logAudit } from "@/lib/audit";
-import { departmentLogoUpdateSchema } from "@/lib/validations/department";
+import { departmentLogoUpdateSchema, departmentReceiptBrandingUpdateSchema } from "@/lib/validations/department";
 
 // GET: single department lookup, scoped the same way the list endpoint is -
 // SUPER_ADMIN can look up any department, DEPARTMENT_ADMIN only their own.
@@ -42,9 +42,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
 
-    if (action !== "archive" && action !== "restore" && action !== "update_logo") {
+    if (action !== "archive" && action !== "restore" && action !== "update_logo" && action !== "update_receipt_branding") {
       return NextResponse.json(
-        { error: 'Invalid action - expected "archive", "restore" or "update_logo"' },
+        { error: 'Invalid action - expected "archive", "restore", "update_logo" or "update_receipt_branding"' },
         { status: 400 }
       );
     }
@@ -65,6 +65,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         userId: user.id,
         departmentId: updated.id,
         action: parsed.logoUrl ? "DEPARTMENT_LOGO_UPDATED" : "DEPARTMENT_LOGO_REMOVED",
+        entity: "Department",
+        entityId: updated.id,
+        metadata: { name: updated.name },
+      });
+
+      return NextResponse.json({ department: updated });
+    }
+
+    if (action === "update_receipt_branding") {
+      const parsed = departmentReceiptBrandingUpdateSchema.parse(body);
+      const updated = await prisma.department.update({
+        where: { id: params.id },
+        data: parsed,
+      });
+
+      await logAudit({
+        userId: user.id,
+        departmentId: updated.id,
+        action: "DEPARTMENT_RECEIPT_BRANDING_UPDATED",
         entity: "Department",
         entityId: updated.id,
         metadata: { name: updated.name },

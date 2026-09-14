@@ -46,6 +46,23 @@ describe("BrevoEmailProvider", () => {
     expect(payload.to).toEqual([{ email: "student@example.com" }]);
     expect(payload.subject).toBe("Ceramic Engineering dues receipt - REC-2026-000006");
     expect(payload.textContent).toBe("Dear Kwame, your payment of GHS 100 was received.");
+    expect(payload.attachment).toBeUndefined();
+  });
+
+  it("includes a base64-encoded attachment array when attachments are provided", async () => {
+    const fetchMock = mockFetchResponse(true, 201, { messageId: "msg_123" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new BrevoEmailProvider();
+    await provider.send({
+      to: "student@example.com",
+      subject: "Receipt",
+      body: "Body",
+      attachments: [{ filename: "receipt.pdf", content: Buffer.from("PDF-DATA"), contentType: "application/pdf" }],
+    });
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.attachment).toEqual([{ name: "receipt.pdf", content: Buffer.from("PDF-DATA").toString("base64") }]);
   });
 
   it("uses the department's fromAddress over the account-wide fallback", async () => {

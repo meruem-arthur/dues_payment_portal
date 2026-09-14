@@ -27,6 +27,11 @@ import type { EmailProvider, SendEmailInput, SendEmailResult } from "./provider.
  * department hasn't set its own.
  *
  * https://developers.brevo.com/reference/sendtransacemail
+ *
+ * Attachments (input.attachments) are sent as Brevo's `attachment` array -
+ * base64 content plus a filename, no separate upload step needed. Used for
+ * the PDF receipt (see src/lib/receipts-pdf.ts); each one is only a few KB,
+ * well under Brevo's per-email size limit.
  */
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
@@ -50,6 +55,9 @@ export class BrevoEmailProvider implements EmailProvider {
       to: [{ email: input.to }],
       subject: input.subject,
       textContent: input.body,
+      ...(input.attachments?.length
+        ? { attachment: input.attachments.map((a) => ({ name: a.filename, content: a.content.toString("base64") })) }
+        : {}),
     };
 
     let res: Response;

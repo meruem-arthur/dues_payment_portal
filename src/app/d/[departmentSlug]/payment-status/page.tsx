@@ -42,6 +42,14 @@ export default async function PaymentStatusPage({
             ? `Receipt ${payment.receipt?.receiptNumber ?? ""} has been issued for GHS ${amountDisplay}, and an SMS has been sent to ${payment.student.phone}.`
             : "Your payment was not successful. Please try again or contact your department."}
         </p>
+        {payment.status === "SUCCESS" && payment.receipt && (
+          <a
+            href={`/api/receipts/download?ref=${encodeURIComponent(payment.internalReference)}`}
+            className="portal-btn-primary inline-block"
+          >
+            Download Receipt (PDF)
+          </a>
+        )}
       </div>
     </main>
   );

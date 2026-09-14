@@ -3,6 +3,7 @@ import { getSmsProvider } from "@/lib/sms/provider-factory";
 import { getEmailProvider } from "@/lib/email/provider-factory";
 import { decryptSmsApiKey } from "@/lib/crypto/field-encryption";
 import { captureError } from "@/lib/monitoring/capture-error";
+import { generateReceiptPdf } from "@/lib/receipts-pdf";
 
 /**
  * Generates a receipt number in the form REC-<year>-<zero-padded sequence>.
@@ -26,7 +27,11 @@ export async function generateReceiptNumber(): Promise<string> {
 export async function issueReceiptAndNotify(paymentId: string) {
   const payment = await prisma.payment.findUniqueOrThrow({
     where: { id: paymentId },
-    include: { student: true, department: { include: { smsConfig: true, emailConfig: true } } },
+    include: {
+      student: true,
+      academicSession: true,
+      department: { include: { smsConfig: true, emailConfig: true } },
+    },
   });
 
   if (payment.status !== "SUCCESS") {
@@ -58,7 +63,9 @@ export async function issueReceiptAndNotify(paymentId: string) {
   // Notifications happen outside the DB transaction and are best-effort -
   // one channel failing must never affect the other or the payment/receipt.
   await sendSmsReceipt(payment, receiptNumber).catch((e) => captureError(e, { context: "sms-receipt", paymentId: payment.id }));
-  await sendEmailReceipt(payment, receiptNumber).catch((e) => captureError(e, { context: "email-receipt", paymentId: payment.id }));
+  await sendEmailReceipt(payment, receiptNumber, receipt.issuedAt).catch((e) =>
+    captureError(e, { context: "email-receipt", paymentId: payment.id })
+  );
 
   return receipt;
 }
@@ -124,12 +131,20 @@ async function sendSmsReceipt(
 async function sendEmailReceipt(
   payment: Awaited<ReturnType<typeof prisma.payment.findUniqueOrThrow>> & {
     student: { fullName: string; referenceNumber: string; email: string | null; level: string };
+    academicSession: { name: string };
     department: {
       name: string;
+      logoUrl: string | null;
+      stampUrl: string | null;
+      financialSecretaryName: string | null;
+      financialSecretarySignatureUrl: string | null;
+      presidentName: string | null;
+      presidentSignatureUrl: string | null;
       emailConfig: { fromAddress: string | null; emailTemplate: string; enabled: boolean } | null;
     };
   },
-  receiptNumber: string
+  receiptNumber: string,
+  issuedAt: Date
 ) {
   const emailConfig = payment.department.emailConfig;
   // Two independent conditions gate this, both required: the department
@@ -147,12 +162,34 @@ async function sendEmailReceipt(
     .replace("{reference}", payment.student.referenceNumber)
     .replace("{receipt}", receiptNumber);
 
+  // Attach the same PDF as the "Download Receipt" link on the
+  // payment-status page (src/app/api/receipts/download/route.ts) - built
+  // fresh here rather than reused, since it's cheap to generate and this
+  // keeps the two code paths from drifting apart.
+  let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
+  try {
+    const pdfBytes = await generateReceiptPdf({
+      receiptNumber,
+      issuedAt,
+      department: payment.department,
+      student: payment.student,
+      payment: { amount: amountNumber, currency: payment.currency, paymentType: payment.paymentType, provider: payment.provider, paidAt: payment.paidAt },
+      academicSessionName: payment.academicSession.name,
+    });
+    attachments = [{ filename: `${receiptNumber}.pdf`, content: Buffer.from(pdfBytes), contentType: "application/pdf" }];
+  } catch (e) {
+    // A PDF build failure must never block the email itself - the student
+    // still gets their receipt text, just without the attachment this once.
+    captureError(e, { context: "receipt-pdf-for-email", paymentId: payment.id });
+  }
+
   const emailProvider = getEmailProvider();
   const result = await emailProvider.send({
     to: payment.student.email,
     subject: `${payment.department.name} dues receipt - ${receiptNumber}`,
     body,
     from: emailConfig.fromAddress ?? undefined,
+    attachments,
   });
 
   await prisma.notificationLog.create({

@@ -129,6 +129,17 @@ model Department {
   // the page entirely when null, per department.
   logoUrl            String?
 
+  // Receipt branding, per department: shown at the bottom of the PDF
+  // receipt attached to a student's confirmation email (see
+  // src/lib/receipts-pdf.ts). All optional and stored the same way as
+  // logoUrl (data URL, no external object storage) - a receipt simply
+  // omits whichever of these a department hasn't uploaded yet.
+  stampUrl                       String?
+  financialSecretaryName         String?
+  financialSecretarySignatureUrl String?
+  presidentName                  String?
+  presidentSignatureUrl          String?
+
   // Departments are never hard-deleted: payment records are financial
   // history and must survive department removal from the active system.
   // "Deleting" a department in the UI archives it instead - it disappears
