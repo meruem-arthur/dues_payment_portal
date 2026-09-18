@@ -16,7 +16,6 @@ type Department = {
   fresherAmount: number;
   continuingAmount: number;
   logoUrl?: string | null;
-  stampUrl?: string | null;
   financialSecretaryName?: string | null;
   financialSecretarySignatureUrl?: string | null;
   presidentName?: string | null;
@@ -87,11 +86,11 @@ function resizeLogoFile(
   reader.readAsDataURL(file);
 }
 
-// Used for the receipt branding dialog (stamp + signatures) below. Unlike
-// the logo, these are naturally wide/rectangular (a signature scrawl, a
-// round-but-not-square stamp) - cropping them to a square would cut real
-// content off. This instead scales down to fit within a bounding box while
-// keeping the original aspect ratio, so nothing is cropped.
+// Used for the receipt branding dialog (signatures) below. Unlike the
+// logo, these are naturally wide/rectangular (a signature scrawl) -
+// cropping them to a square would cut real content off. This instead
+// scales down to fit within a bounding box while keeping the original
+// aspect ratio, so nothing is cropped.
 function resizeBrandingImage(
   file: File,
   { onSuccess, onError }: { onSuccess: (dataUrl: string) => void; onError: (msg: string) => void }
@@ -242,12 +241,11 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [logoSaving, setLogoSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Receipt branding dialog - stamp + 2 signatures + printed names, all
-  // saved together in one PATCH (action: "update_receipt_branding"). Same
+  // Receipt branding dialog - 2 signatures + printed names, all saved
+  // together in one PATCH (action: "update_receipt_branding"). Same
   // "null clears it" convention as the logo editor above.
   const [brandingDept, setBrandingDept] = useState<Department | null>(null);
   const [brandingDraft, setBrandingDraft] = useState({
-    stampUrl: null as string | null,
     financialSecretaryName: "",
     financialSecretarySignatureUrl: null as string | null,
     presidentName: "",
@@ -259,7 +257,6 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   function openBrandingEditor(dept: Department) {
     setBrandingDept(dept);
     setBrandingDraft({
-      stampUrl: dept.stampUrl ?? null,
       financialSecretaryName: dept.financialSecretaryName ?? "",
       financialSecretarySignatureUrl: dept.financialSecretarySignatureUrl ?? null,
       presidentName: dept.presidentName ?? "",
@@ -273,7 +270,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
     setBrandingError(null);
   }
 
-  function handleBrandingImageFile(field: "stampUrl" | "financialSecretarySignatureUrl" | "presidentSignatureUrl", file: File | null) {
+  function handleBrandingImageFile(field: "financialSecretarySignatureUrl" | "presidentSignatureUrl", file: File | null) {
     setBrandingError(null);
     if (!file) return;
     resizeBrandingImage(file, {
@@ -292,7 +289,6 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "update_receipt_branding",
-          stampUrl: brandingDraft.stampUrl,
           financialSecretaryName: brandingDraft.financialSecretaryName || null,
           financialSecretarySignatureUrl: brandingDraft.financialSecretarySignatureUrl,
           presidentName: brandingDraft.presidentName || null,
@@ -1370,34 +1366,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
 
             {brandingError && <p className="text-xs text-red-400">{brandingError}</p>}
 
-            <div className="space-y-1">
-              <label className="text-sm text-muted">Department Stamp</label>
-              <div className="flex items-center gap-3">
-                {brandingDraft.stampUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={brandingDraft.stampUrl} alt="Stamp preview" className="h-16 w-16 rounded border border-[#2a2338] object-contain bg-white" />
-                ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-[#2a2338] text-[10px] text-muted">
-                    No stamp
-                  </div>
-                )}
-                <div className="flex-1 space-y-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="admin-input"
-                    onChange={(e) => handleBrandingImageFile("stampUrl", e.target.files?.[0] ?? null)}
-                  />
-                  {brandingDraft.stampUrl && (
-                    <button type="button" className="text-xs text-red-400 underline" onClick={() => setBrandingDraft((d) => ({ ...d, stampUrl: null }))}>
-                      Remove stamp
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-1 border-t border-[#2a2338] pt-4">
+            <div className="space-y-1 pt-4">
               <label className="text-sm text-muted">Financial Secretary Signature</label>
               <div className="flex items-center gap-3">
                 {brandingDraft.financialSecretarySignatureUrl ? (

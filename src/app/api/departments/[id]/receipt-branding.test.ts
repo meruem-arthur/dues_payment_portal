@@ -47,14 +47,13 @@ beforeEach(() => {
 });
 
 describe("PATCH /api/departments/[id] - update_receipt_branding", () => {
-  it("saves stamp, signatures and names", async () => {
-    const updated = { ...existingDepartment, stampUrl: tinyPng, financialSecretaryName: "Ama Boateng" };
+  it("saves signatures and names", async () => {
+    const updated = { ...existingDepartment, financialSecretaryName: "Ama Boateng" };
     mockedPrisma.department.update.mockResolvedValue(updated as any);
 
     const res = await PATCH(
       makeRequest({
         action: "update_receipt_branding",
-        stampUrl: tinyPng,
         financialSecretaryName: "Ama Boateng",
         financialSecretarySignatureUrl: tinyPng,
         presidentName: "Kwame Owusu",
@@ -69,7 +68,6 @@ describe("PATCH /api/departments/[id] - update_receipt_branding", () => {
       expect.objectContaining({
         where: { id: "dept_1" },
         data: expect.objectContaining({
-          stampUrl: tinyPng,
           financialSecretaryName: "Ama Boateng",
           presidentName: "Kwame Owusu",
         }),
@@ -78,23 +76,23 @@ describe("PATCH /api/departments/[id] - update_receipt_branding", () => {
     expect(mockedLogAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "DEPARTMENT_RECEIPT_BRANDING_UPDATED" })
     );
-    expect(data.department.stampUrl).toBe(tinyPng);
+    expect(data.department.financialSecretaryName).toBe("Ama Boateng");
   });
 
   it("allows clearing a single field with an explicit null, leaving others untouched", async () => {
     mockedPrisma.department.update.mockResolvedValue(existingDepartment as any);
 
-    const res = await PATCH(makeRequest({ action: "update_receipt_branding", stampUrl: null }), params);
+    const res = await PATCH(makeRequest({ action: "update_receipt_branding", financialSecretarySignatureUrl: null }), params);
 
     expect(res.status).toBe(200);
     expect(mockedPrisma.department.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { stampUrl: null } })
+      expect.objectContaining({ data: { financialSecretarySignatureUrl: null } })
     );
   });
 
   it("rejects a non-image value", async () => {
     const res = await PATCH(
-      makeRequest({ action: "update_receipt_branding", stampUrl: "not-an-image" }),
+      makeRequest({ action: "update_receipt_branding", financialSecretarySignatureUrl: "not-an-image" }),
       params
     );
     expect(res.status).toBe(400);

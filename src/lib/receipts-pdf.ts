@@ -6,7 +6,6 @@ export type ReceiptPdfData = {
   department: {
     name: string;
     logoUrl?: string | null;
-    stampUrl?: string | null;
     financialSecretaryName?: string | null;
     financialSecretarySignatureUrl?: string | null;
     presidentName?: string | null;
@@ -33,11 +32,11 @@ const MARGIN = 40;
 
 /**
  * Decodes a `data:image/...;base64,...` URL (the only way images are ever
- * stored in this app - see Department.logoUrl / stampUrl / signature* on
- * the schema) and embeds it into the PDF. Returns null for anything
- * missing or malformed rather than throwing, since every image on a
- * receipt is optional - a department that hasn't uploaded a stamp yet
- * should still get a valid receipt, just without that image.
+ * stored in this app - see Department.logoUrl / signature* on the schema)
+ * and embeds it into the PDF. Returns null for anything missing or
+ * malformed rather than throwing, since every image on a receipt is
+ * optional - a department that hasn't uploaded a signature yet should
+ * still get a valid receipt, just without that image.
  */
 async function embedDataUrlImage(pdfDoc: PDFDocument, dataUrl: string | null | undefined) {
   if (!dataUrl) return null;
@@ -140,13 +139,13 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
   y -= 20;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
 
-  // --- Signatures / stamp footer --------------------------------------
-  // Three columns: Financial Secretary signature (left), department stamp
-  // (center), President signature (right). Each is entirely optional -
-  // a department that's only uploaded one or two of these still gets a
-  // clean receipt, just with blank space where the rest would go.
+  // --- Signatures footer -------------------------------------------------
+  // Two columns: Financial Secretary signature (left), President signature
+  // (right). Each is entirely optional - a department that's only
+  // uploaded one still gets a clean receipt, just with blank space where
+  // the other would go.
   const footerTop = y - 30;
-  const colWidth = (PAGE_WIDTH - 2 * MARGIN) / 3;
+  const colWidth = (PAGE_WIDTH - 2 * MARGIN) / 2;
   const imgMaxHeight = 42;
   const imgMaxWidth = colWidth - 20;
 
@@ -197,8 +196,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
     "Financial Secretary",
     data.department.financialSecretaryName
   );
-  await drawSignatureColumn(1, data.department.stampUrl, "Department Stamp", null);
-  await drawSignatureColumn(2, data.department.presidentSignatureUrl, "President", data.department.presidentName);
+  await drawSignatureColumn(1, data.department.presidentSignatureUrl, "President", data.department.presidentName);
 
   // --- Page footer ------------------------------------------------------
   const footerText = "This is a computer-generated receipt and does not require a physical signature to be valid.";

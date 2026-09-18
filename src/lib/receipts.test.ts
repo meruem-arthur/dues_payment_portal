@@ -41,7 +41,6 @@ const successPayment = {
   department: {
     name: "Ceramic Engineering",
     logoUrl: null,
-    stampUrl: null,
     financialSecretaryName: null,
     financialSecretarySignatureUrl: null,
     presidentName: null,

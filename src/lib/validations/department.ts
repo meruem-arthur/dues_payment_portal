@@ -173,7 +173,6 @@ const brandingImageField = z
   .optional();
 
 export const departmentReceiptBrandingUpdateSchema = z.object({
-  stampUrl: brandingImageField,
   financialSecretaryName: z.string().trim().max(200).nullable().optional(),
   financialSecretarySignatureUrl: brandingImageField,
   presidentName: z.string().trim().max(200).nullable().optional(),

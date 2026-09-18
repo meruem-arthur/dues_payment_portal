@@ -183,7 +183,6 @@ async function sendEmailReceipt(
     department: {
       name: string;
       logoUrl: string | null;
-      stampUrl: string | null;
       financialSecretaryName: string | null;
       financialSecretarySignatureUrl: string | null;
       presidentName: string | null;

@@ -22,13 +22,12 @@ describe("generateReceiptPdf", () => {
     expect(doc.getPageCount()).toBe(1);
   });
 
-  it("embeds the stamp and both signature images when provided", async () => {
+  it("embeds both signature images when provided", async () => {
     const bytes = await generateReceiptPdf({
       ...baseData,
       department: {
         ...baseData.department,
         logoUrl: TINY_PNG,
-        stampUrl: TINY_PNG,
         financialSecretaryName: "Ama Boateng",
         financialSecretarySignatureUrl: TINY_PNG,
         presidentName: "Kwame Owusu",
@@ -37,14 +36,14 @@ describe("generateReceiptPdf", () => {
     });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(1);
-    // 4 embedded images: logo, stamp, 2 signatures.
+    // 3 embedded images: logo, 2 signatures.
     expect(doc.context.enumerateIndirectObjects().length).toBeGreaterThan(0);
   });
 
   it("never throws on a malformed image value - just omits it", async () => {
     const bytes = await generateReceiptPdf({
       ...baseData,
-      department: { ...baseData.department, stampUrl: "not-a-data-url" },
+      department: { ...baseData.department, financialSecretarySignatureUrl: "not-a-data-url" },
     });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(1);
