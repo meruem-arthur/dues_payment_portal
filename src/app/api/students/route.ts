@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { captureError } from "@/lib/monitoring/capture-error";
 import { prisma } from "@/lib/db";
-import { requireAuth, scopedDepartmentWhere, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
+import { requireAuth, requireDepartmentAccess, scopedDepartmentWhere, UnauthorizedError, ForbiddenError } from "@/lib/authorization";
 import { studentSchema } from "@/lib/validations/student";
 import { logAudit } from "@/lib/audit";
 
@@ -114,6 +114,62 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ student }, { status: 201 });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireAuth();
+    const { searchParams } = new URL(req.url);
+    const departmentId = searchParams.get("departmentId") ?? (user.role === "DEPARTMENT_ADMIN" ? user.departmentId : null);
+
+    if (!departmentId) {
+      return NextResponse.json({ error: "departmentId is required" }, { status: 400 });
+    }
+    await requireDepartmentAccess(departmentId);
+
+    // "Delete all" is intentionally selective: a student with any payment
+    // or receipt on record is left alone (their FK relation is RESTRICT
+    // anyway, see prisma/schema.prisma) so this can be run safely on a
+    // department mid-collection without touching anyone who's already
+    // paid. Skipped students are counted and named back to the caller
+    // rather than silently ignored.
+    const students = await prisma.student.findMany({
+      where: { departmentId },
+      select: {
+        id: true,
+        fullName: true,
+        referenceNumber: true,
+        _count: { select: { payments: true, receipts: true } },
+      },
+    });
+
+    const deletable = students.filter((s: { _count: { payments: number; receipts: number } }) => s._count.payments === 0 && s._count.receipts === 0);
+    const skipped = students.filter((s: { _count: { payments: number; receipts: number } }) => s._count.payments > 0 || s._count.receipts > 0);
+
+    if (deletable.length > 0) {
+      await prisma.student.deleteMany({ where: { id: { in: deletable.map((s: { id: string }) => s.id) } } });
+    }
+
+    await logAudit({
+      userId: user.id,
+      departmentId,
+      action: "STUDENTS_BULK_DELETED",
+      entity: "Student",
+      metadata: {
+        deletedCount: deletable.length,
+        skippedCount: skipped.length,
+        skippedReferenceNumbers: skipped.map((s: { referenceNumber: string }) => s.referenceNumber),
+      },
+    });
+
+    return NextResponse.json({
+      deletedCount: deletable.length,
+      skippedCount: skipped.length,
+      skipped: skipped.map((s: { fullName: string; referenceNumber: string }) => ({ fullName: s.fullName, referenceNumber: s.referenceNumber })),
+    });
   } catch (err) {
     return handleError(err);
   }

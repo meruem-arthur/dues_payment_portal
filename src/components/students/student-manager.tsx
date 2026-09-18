@@ -120,6 +120,37 @@ export function StudentManager({
     fetchStudents();
   }
 
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+
+  async function deleteAllStudents() {
+    if (!departmentId) return;
+    if (
+      !confirm(
+        "Delete ALL students in this department? Anyone with a payment or receipt on record will be skipped and kept. This cannot be undone for the rest."
+      )
+    ) {
+      return;
+    }
+    setBulkDeleting(true);
+    setBulkResult(null);
+    try {
+      const res = await fetch(`/api/students?departmentId=${departmentId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBulkResult(data.error ?? "Could not delete students");
+        return;
+      }
+      setBulkResult(
+        `Deleted ${data.deletedCount} student(s).` +
+          (data.skippedCount ? ` Skipped ${data.skippedCount} with existing payments/receipts.` : "")
+      );
+      fetchStudents();
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<{ id: string; text: string } | null>(null);
 
@@ -196,8 +227,19 @@ export function StudentManager({
           </button>
           <button className="admin-btn-secondary" onClick={() => setShowCsvDialog(true)}>Upload CSV</button>
           <button className="admin-btn-primary" onClick={() => setShowAddDialog(true)}>Add Student</button>
+          {departmentId && (
+            <button
+              className="admin-btn-secondary text-red-400 disabled:opacity-60"
+              onClick={deleteAllStudents}
+              disabled={bulkDeleting || students.length === 0}
+            >
+              {bulkDeleting ? "Deleting..." : "Delete All"}
+            </button>
+          )}
         </div>
       </div>
+
+      {bulkResult && <p className="rounded-md bg-white/5 px-3 py-2 text-sm text-muted">{bulkResult}</p>}
 
       <div className="admin-card overflow-x-auto">
         <table className="w-full text-sm">
