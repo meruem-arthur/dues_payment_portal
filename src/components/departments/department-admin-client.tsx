@@ -399,7 +399,11 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
         const errors: string[] = [];
         rows.forEach((row, idx) => {
           const level = LEVEL_MAP[(row.level || "").trim()];
-          if (!row.name || !row.reference_number || !row.phone || !level) {
+          // Matches the server's initialStudentSchema.phone (min 9 chars) -
+          // previously this only checked "is phone present at all", so a
+          // too-short number staged fine here and only surfaced later as a
+          // whole-form "Invalid input" rejection on submit.
+          if (!row.name || !row.reference_number || !row.phone || row.phone.trim().length < 9 || !level) {
             errors.push(`Row ${idx + 2}: missing or invalid required field`);
             return;
           }
@@ -515,7 +519,23 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not create department");
+        // The server's generic "Invalid input" message hides which field
+        // actually failed - data.details is the underlying Zod issue list
+        // (path + message per failure). Surface the first one or two so a
+        // bad row (e.g. a too-short phone number somewhere in a large CSV
+        // upload) is actually findable instead of a dead end.
+        if (Array.isArray(data.details) && data.details.length > 0) {
+          const first = data.details
+            .slice(0, 3)
+            .map((issue: { path?: (string | number)[]; message?: string }) => {
+              const path = Array.isArray(issue.path) ? issue.path.join(".") : "field";
+              return `${path}: ${issue.message ?? "invalid"}`;
+            })
+            .join(" | ");
+          setError(`${data.error ?? "Invalid input"} — ${first}`);
+        } else {
+          setError(data.error ?? "Could not create department");
+        }
         return;
       }
       setShowCreate(false);
