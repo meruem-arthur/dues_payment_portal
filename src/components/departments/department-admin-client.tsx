@@ -345,6 +345,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [smsSettingsDept, setSmsSettingsDept] = useState<Department | null>(null);
   const [smsForm, setSmsForm] = useState(emptySmsForm);
   const [smsMeta, setSmsMeta] = useState<{ hasApiKey: boolean } | null>(null);
+  const [smsProvider, setSmsProvider] = useState<string>("MOCK");
   const [smsLoading, setSmsLoading] = useState(false);
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
@@ -703,6 +704,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
         return;
       }
       const config: SmsConfig | null = data.config;
+      setSmsProvider(data.provider ?? "MOCK");
       if (config) {
         setSmsForm({
           senderId: config.senderId,
@@ -1129,7 +1131,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
             {smsLoading ? (
               <p className="text-sm text-muted">Loading current configuration...</p>
             ) : (
-              <Section title="Africa's Talking Credentials">
+              <Section title={smsProvider === "ARKESEL" ? "Arkesel Credentials" : "Africa's Talking Credentials"}>
                 <div className="flex items-center justify-between col-span-2">
                   <label className="text-sm text-muted">Send SMS receipts</label>
                   <input
@@ -1147,7 +1149,11 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                       className="admin-input"
                       value={smsForm.senderId}
                       onChange={(e) => setSmsForm({ ...smsForm, senderId: e.target.value.slice(0, 11) })}
-                      placeholder="Leave blank until approved by Africa's Talking"
+                      placeholder={
+                        smsProvider === "ARKESEL"
+                          ? "Leave blank until approved by Arkesel"
+                          : "Leave blank until approved by Africa's Talking"
+                      }
                     />
                     <button
                       type="button"
@@ -1159,17 +1165,19 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                     </button>
                   </div>
                 </div>
-                <TextField
-                  label="Username"
-                  value={smsForm.username}
-                  onChange={(v) => setSmsForm({ ...smsForm, username: v })}
-                  placeholder={'Africa\'s Talking app username ("sandbox" while testing)'}
-                />
+                {smsProvider !== "ARKESEL" && (
+                  <TextField
+                    label="Username"
+                    value={smsForm.username}
+                    onChange={(v) => setSmsForm({ ...smsForm, username: v })}
+                    placeholder={'Africa\'s Talking app username ("sandbox" while testing)'}
+                  />
+                )}
 
                 <p className="text-xs text-muted col-span-2">
-                  An unapproved sender ID gets rejected by Africa&apos;s Talking (error: InvalidSenderId) - click
-                  Clear to remove a saved sender ID and messages will send from the account&apos;s default sender
-                  until a real one is registered and approved.
+                  {smsProvider === "ARKESEL"
+                    ? "An unapproved sender ID gets rejected by Arkesel - click Clear to remove a saved sender ID and messages will send from a generic fallback sender until a real one is registered and approved."
+                    : "An unapproved sender ID gets rejected by Africa's Talking (error: InvalidSenderId) - click Clear to remove a saved sender ID and messages will send from the account's default sender until a real one is registered and approved."}
                 </p>
 
                 <div className="space-y-1 col-span-2">
@@ -1179,7 +1187,13 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                     className="admin-input"
                     value={smsForm.apiKey}
                     onChange={(e) => setSmsForm({ ...smsForm, apiKey: e.target.value })}
-                    placeholder={smsMeta?.hasApiKey ? "API key is set - leave blank to keep it" : "Africa's Talking API key"}
+                    placeholder={
+                      smsMeta?.hasApiKey
+                        ? "API key is set - leave blank to keep it"
+                        : smsProvider === "ARKESEL"
+                          ? "Arkesel API key"
+                          : "Africa's Talking API key"
+                    }
                   />
                   <p className="text-xs text-muted">
                     Never shown once saved. Leave blank to keep the current API key.

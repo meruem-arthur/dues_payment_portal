@@ -29,8 +29,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     });
 
     // apiKey is never sent to the client - only whether it's set, so the
-    // frontend can show "API key is set - leave blank to keep it".
+    // frontend can show "API key is set - leave blank to keep it". The
+    // active provider is app-wide (SMS_PROVIDER env var, see
+    // src/lib/sms/provider-factory.ts) - exposed here so the form can show
+    // the right field labels/placeholders (e.g. Arkesel has no "username").
     return NextResponse.json({
+      provider: process.env.SMS_PROVIDER ?? "MOCK",
       config: config
         ? {
             senderId: config.senderId,
