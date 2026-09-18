@@ -70,6 +70,52 @@ export async function issueReceiptAndNotify(paymentId: string) {
   return receipt;
 }
 
+/**
+ * Re-sends the SMS/email receipt for a payment that has ALREADY succeeded
+ * and already has a receipt - it never creates a new receipt or re-verifies
+ * anything with the payment provider. Always re-reads the student record
+ * fresh, so if an admin has since corrected a typo'd phone/email, THIS send
+ * goes to the corrected contact - unlike the original webhook-triggered
+ * send, which only ever fired once against whatever was on file at the
+ * moment the payment was confirmed.
+ */
+export async function resendReceipt(paymentId: string) {
+  const payment = await prisma.payment.findUniqueOrThrow({
+    where: { id: paymentId },
+    include: {
+      student: true,
+      academicSession: true,
+      department: { include: { smsConfig: true, emailConfig: true } },
+      receipt: true,
+    },
+  });
+
+  if (payment.status !== "SUCCESS" || !payment.receipt) {
+    throw new Error("Cannot resend a receipt for a payment that hasn't succeeded yet");
+  }
+
+  const results: { sms: "SENT" | "FAILED" | "SKIPPED"; email: "SENT" | "FAILED" | "SKIPPED" } = {
+    sms: "SKIPPED",
+    email: "SKIPPED",
+  };
+
+  try {
+    results.sms = (await sendSmsReceipt(payment, payment.receipt.receiptNumber)) ?? "SKIPPED";
+  } catch (e) {
+    results.sms = "FAILED";
+    captureError(e, { context: "sms-receipt-resend", paymentId: payment.id });
+  }
+
+  try {
+    results.email = (await sendEmailReceipt(payment, payment.receipt.receiptNumber, payment.receipt.issuedAt)) ?? "SKIPPED";
+  } catch (e) {
+    results.email = "FAILED";
+    captureError(e, { context: "email-receipt-resend", paymentId: payment.id });
+  }
+
+  return results;
+}
+
 async function sendSmsReceipt(
   payment: Awaited<ReturnType<typeof prisma.payment.findUniqueOrThrow>> & {
     student: { fullName: string; referenceNumber: string; phone: string; level: string };
@@ -81,7 +127,7 @@ async function sendSmsReceipt(
   receiptNumber: string
 ) {
   const smsConfig = payment.department.smsConfig;
-  if (!smsConfig || !smsConfig.enabled) return;
+  if (!smsConfig || !smsConfig.enabled) return "SKIPPED" as const;
 
   // Student.level is stored as "L100".."L400" (see prisma schema) - drop
   // the leading "L" so the SMS reads "Level : 300" as requested, not "L300".
@@ -126,6 +172,8 @@ async function sendSmsReceipt(
   });
 
   // Explicitly: SMS failure must NEVER change payment.status or receipt state.
+  if (result.success) return "SENT" as const;
+  return "FAILED" as const;
 }
 
 async function sendEmailReceipt(
@@ -150,7 +198,7 @@ async function sendEmailReceipt(
   // Two independent conditions gate this, both required: the department
   // must have turned email receipts on, AND this particular student must
   // have an email on file (it's an optional field collected at checkout).
-  if (!emailConfig || !emailConfig.enabled || !payment.student.email) return;
+  if (!emailConfig || !emailConfig.enabled || !payment.student.email) return "SKIPPED" as const;
 
   const amountNumber = Number(payment.amount);
   const amountDisplay = Number.isInteger(amountNumber) ? amountNumber.toString() : amountNumber.toFixed(2);
@@ -204,4 +252,6 @@ async function sendEmailReceipt(
   });
 
   // Same rule as SMS: email failure must NEVER change payment/receipt state.
+  if (result.success) return "SENT" as const;
+  return "FAILED" as const;
 }

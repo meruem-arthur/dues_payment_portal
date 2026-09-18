@@ -154,6 +154,35 @@ export function StudentManager({
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<{ id: string; text: string } | null>(null);
 
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendResult, setResendResult] = useState<{ id: string; text: string } | null>(null);
+
+  async function resendStudentReceipt(student: Student) {
+    if (
+      !confirm(
+        `Resend ${student.fullName}'s receipt? This sends to whatever phone/email is currently on file for them - double-check it's correct first if you're fixing a typo.`
+      )
+    ) {
+      return;
+    }
+    setResendingId(student.id);
+    setResendResult(null);
+    try {
+      const res = await fetch(`/api/students/${student.id}/resend-receipt`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResendResult({ id: student.id, text: data.error ?? "Could not resend the receipt" });
+        return;
+      }
+      const parts: string[] = [];
+      if (data.sms !== "SKIPPED") parts.push(`SMS ${data.sms.toLowerCase()}`);
+      if (data.email !== "SKIPPED") parts.push(`Email ${data.email.toLowerCase()}`);
+      setResendResult({ id: student.id, text: parts.length ? parts.join(", ") : "Nothing to resend (SMS/email disabled or no email on file)" });
+    } finally {
+      setResendingId(null);
+    }
+  }
+
   async function cancelPendingPayment(student: Student) {
     if (
       !confirm(
@@ -281,6 +310,9 @@ export function StudentManager({
                   {cancelError?.id === s.id && (
                     <p className="mt-1 text-xs text-red-400">{cancelError.text}</p>
                   )}
+                  {resendResult?.id === s.id && (
+                    <p className="mt-1 text-xs text-muted">{resendResult.text}</p>
+                  )}
                 </td>
                 <td className="space-x-2 p-3 text-right">
                   {s.paymentStatus !== "SUCCESS" && s.hasPendingPayment && (
@@ -290,6 +322,15 @@ export function StudentManager({
                       disabled={cancellingId === s.id}
                     >
                       {cancellingId === s.id ? "Cancelling..." : "Cancel Pending Payment"}
+                    </button>
+                  )}
+                  {s.paymentStatus === "SUCCESS" && (
+                    <button
+                      className="text-accent hover:underline disabled:opacity-50"
+                      onClick={() => resendStudentReceipt(s)}
+                      disabled={resendingId === s.id}
+                    >
+                      {resendingId === s.id ? "Resending..." : "Resend Receipt"}
                     </button>
                   )}
                   <button className="text-accent hover:underline" onClick={() => openEditDialog(s)}>Edit</button>
