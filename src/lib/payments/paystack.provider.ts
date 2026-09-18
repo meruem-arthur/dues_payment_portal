@@ -33,6 +33,11 @@ export class PaystackProvider implements PaymentProvider {
         reference: input.internalReference,
         callback_url: input.callbackUrl,
         metadata: input.metadata,
+        // Department's Paystack subaccount code (e.g. ACCT_xxxxxxx), set via
+        // the payment-config admin form and stored as configValue. Omitted
+        // entirely when not set, so departments without a subaccount keep
+        // funds going straight to the main Paystack account as before.
+        ...(credentials.configValue ? { subaccount: credentials.configValue } : {}),
       }),
     });
 
