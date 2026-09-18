@@ -1642,6 +1642,17 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 <button type="button" className="admin-btn-secondary" onClick={() => setShowManualRow((v) => !v)}>
                   Add Student Manually
                 </button>
+                {students.length > 0 && (
+                  <button
+                    type="button"
+                    className="admin-btn-secondary text-red-400"
+                    onClick={() => {
+                      if (window.confirm(`Remove all ${students.length} staged students?`)) setStudents([]);
+                    }}
+                  >
+                    Clear All
+                  </button>
+                )}
               </div>
               <p className="text-xs text-muted">
                 Columns: name, reference_number, student_id (optional), level (100-400 or L100-L400), phone, email
