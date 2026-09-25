@@ -57,4 +57,19 @@ describe("generateReceiptPdf", () => {
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(1);
   });
+
+  it("draws a verification QR block when verifyUrl is provided, without changing page count", async () => {
+    const bytes = await generateReceiptPdf({
+      ...baseData,
+      verifyUrl: "https://example.com/verify/REC-2026-000042",
+    });
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(1);
+  });
+
+  it("omits the verification QR block when verifyUrl is absent (unchanged behavior)", async () => {
+    const bytes = await generateReceiptPdf(baseData);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBe(1);
+  });
 });

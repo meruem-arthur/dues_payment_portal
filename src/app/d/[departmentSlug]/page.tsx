@@ -1,9 +1,14 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { PayButton } from "@/components/students/pay-button";
-import QRCode from "qrcode";
 
-export default async function PublicDepartmentPage({ params }: { params: { departmentSlug: string } }) {
+export default async function PublicDepartmentPage({
+  params,
+  searchParams,
+}: {
+  params: { departmentSlug: string };
+  searchParams: { type?: string };
+}) {
   const department = await prisma.department.findUnique({
     where: { slug: params.departmentSlug },
     include: { academicSession: true },
@@ -15,14 +20,12 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
   // money into a department that's no longer active.
   if (department.status === "ARCHIVED") return notFound();
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const fresherUrl = `${baseUrl}/d/${department.slug}?type=FRESHER`;
-  const continuingUrl = `${baseUrl}/d/${department.slug}?type=CONTINUING`;
-
-  const [fresherQr, continuingQr] = await Promise.all([
-    QRCode.toDataURL(fresherUrl, { margin: 1, color: { dark: "#0f9b8e", light: "#ffffff" } }),
-    QRCode.toDataURL(continuingUrl, { margin: 1, color: { dark: "#0f9b8e", light: "#ffffff" } }),
-  ]);
+  // `?type=FRESHER` / `?type=CONTINUING` deep links (generated and
+  // distributed from the admin side - see department-admin-client.tsx) skip
+  // straight to that one payment form instead of the two-card chooser, and
+  // open the form itself rather than making the student click "Pay Now"
+  // first, since finding the form IS the point of following the link.
+  const requestedType = searchParams.type === "FRESHER" || searchParams.type === "CONTINUING" ? searchParams.type : null;
 
   return (
     <main className="portal-shell flex flex-col items-center px-4 py-12">
@@ -56,25 +59,33 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
           )}
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-10 sm:gap-48 mt-4 sm:mt-6 md:grid-cols-2">
-          <DuesCard
-            title="First Year Students"
-            amount={Number(department.fresherAmount)}
-            qr={fresherQr}
-            link={fresherUrl}
-            departmentSlug={department.slug}
-            paymentType="FRESHER"
-          />
+        {requestedType ? (
+          <div className="mx-auto grid max-w-xs grid-cols-1 gap-10 mt-4 sm:mt-6">
+            <DuesCard
+              title={requestedType === "FRESHER" ? "First Year Students" : "Continuing Students"}
+              amount={Number(requestedType === "FRESHER" ? department.fresherAmount : department.continuingAmount)}
+              departmentSlug={department.slug}
+              paymentType={requestedType}
+              autoOpen
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 items-start gap-10 sm:gap-48 mt-4 sm:mt-6 md:grid-cols-2">
+            <DuesCard
+              title="First Year Students"
+              amount={Number(department.fresherAmount)}
+              departmentSlug={department.slug}
+              paymentType="FRESHER"
+            />
 
-          <DuesCard
-            title="Continuing Students"
-            amount={Number(department.continuingAmount)}
-            qr={continuingQr}
-            link={continuingUrl}
-            departmentSlug={department.slug}
-            paymentType="CONTINUING"
-          />
-        </div>
+            <DuesCard
+              title="Continuing Students"
+              amount={Number(department.continuingAmount)}
+              departmentSlug={department.slug}
+              paymentType="CONTINUING"
+            />
+          </div>
+        )}
       </div>
     </main>
   );
@@ -83,30 +94,21 @@ export default async function PublicDepartmentPage({ params }: { params: { depar
 function DuesCard({
   title,
   amount,
-  qr,
-  link,
   departmentSlug,
   paymentType,
+  autoOpen,
 }: {
   title: string;
   amount: number;
-  qr: string;
-  link: string;
   departmentSlug: string;
   paymentType: "FRESHER" | "CONTINUING";
+  autoOpen?: boolean;
 }) {
   return (
     <div className="portal-card flex flex-col items-center space-y-3 p-4 sm:space-y-4 sm:p-6">
       <h2 className="text-sm font-semibold text-portal-text sm:text-lg">{title}</h2>
       <p className="text-xl font-bold text-portal-accent sm:text-3xl">GHS {amount.toLocaleString()}</p>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={qr}
-        alt={`QR code for ${title}`}
-        className="h-24 w-24 rounded-md border border-portal-border p-1.5 sm:h-40 sm:w-40 sm:p-2"
-      />
-      <PayButton departmentSlug={departmentSlug} paymentType={paymentType} />
-      <a href={link} className="block break-all text-[10px] text-portal-muted underline sm:text-xs">{link}</a>
+      <PayButton departmentSlug={departmentSlug} paymentType={paymentType} autoOpen={autoOpen} />
     </div>
   );
 }

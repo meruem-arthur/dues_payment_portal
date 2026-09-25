@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     const amountNumber = Number(payment.amount);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     const pdfBytes = await generateReceiptPdf({
       receiptNumber: payment.receipt.receiptNumber,
       issuedAt: payment.receipt.issuedAt,
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
         paidAt: payment.paidAt,
       },
       academicSessionName: payment.academicSession.name,
+      verifyUrl: baseUrl ? `${baseUrl}/verify/${payment.receipt.receiptNumber}` : null,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

@@ -215,6 +215,7 @@ async function sendEmailReceipt(
   // keeps the two code paths from drifting apart.
   let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
   try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     const pdfBytes = await generateReceiptPdf({
       receiptNumber,
       issuedAt,
@@ -222,6 +223,7 @@ async function sendEmailReceipt(
       student: payment.student,
       payment: { amount: amountNumber, currency: payment.currency, paymentType: payment.paymentType, provider: payment.provider, paidAt: payment.paidAt },
       academicSessionName: payment.academicSession.name,
+      verifyUrl: baseUrl ? `${baseUrl}/verify/${receiptNumber}` : null,
     });
     attachments = [{ filename: `${receiptNumber}.pdf`, content: Buffer.from(pdfBytes), contentType: "application/pdf" }];
   } catch (e) {

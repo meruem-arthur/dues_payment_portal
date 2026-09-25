@@ -1,4 +1,5 @@
 import { PDFDocument, PDFFont, PDFPage, rgb, StandardFonts } from "pdf-lib";
+import QRCode from "qrcode";
 
 export type ReceiptPdfData = {
   receiptNumber: string;
@@ -24,10 +25,19 @@ export type ReceiptPdfData = {
     paidAt: Date | null;
   };
   academicSessionName: string;
+  // Fully-resolved link to the public /verify/[receiptNumber] page. Optional
+  // and additive: when omitted (e.g. NEXT_PUBLIC_APP_URL isn't set, or an
+  // older caller), the receipt renders exactly as it did before - just
+  // without the verification QR block.
+  verifyUrl?: string | null;
 };
 
 const PAGE_WIDTH = 419.53; // A5 portrait, points - a receipt doesn't need a full A4 sheet
 const PAGE_HEIGHT = 595.28;
+// The verification QR + caption need extra vertical room near the
+// signatures block. Only grown when there's actually a QR to draw, so a
+// receipt without verifyUrl keeps the exact original page size.
+const VERIFY_BLOCK_HEIGHT = 108;
 const MARGIN = 40;
 
 /**
@@ -74,11 +84,12 @@ function drawRow(page: PDFPage, y: number, label: string, value: string, font: P
  */
 export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const pageHeight = data.verifyUrl ? PAGE_HEIGHT + VERIFY_BLOCK_HEIGHT : PAGE_HEIGHT;
+  const page = pdfDoc.addPage([PAGE_WIDTH, pageHeight]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  let y = PAGE_HEIGHT - MARGIN;
+  let y = pageHeight - MARGIN;
 
   // --- Header -------------------------------------------------------
   const logo = await embedDataUrlImage(pdfDoc, data.department.logoUrl);
@@ -138,6 +149,37 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
 
   y -= 20;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
+
+  // --- Verification QR ---------------------------------------------------
+  // Separate from the "Download Receipt" link on the payment-status page -
+  // this is printed on the PDF itself so a physical/forwarded copy can
+  // still be checked against our records, right above the signatures it
+  // sits next to.
+  if (data.verifyUrl) {
+    const qrSize = 62;
+    try {
+      const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, { margin: 1, color: { dark: "#111111", light: "#ffffff" } });
+      const qrImage = await embedDataUrlImage(pdfDoc, qrDataUrl);
+      if (qrImage) {
+        const qrY = y - 16 - qrSize;
+        page.drawImage(qrImage, { x: (PAGE_WIDTH - qrSize) / 2, y: qrY, width: qrSize, height: qrSize });
+
+        const caption = "Scan to verify this receipt";
+        const captionWidth = font.widthOfTextAtSize(caption, 8);
+        page.drawText(caption, {
+          x: (PAGE_WIDTH - captionWidth) / 2,
+          y: qrY - 12,
+          size: 8,
+          font,
+          color: rgb(0.45, 0.45, 0.45),
+        });
+
+        y = qrY - 26;
+      }
+    } catch {
+      // A QR-generation failure must never block issuing the receipt itself.
+    }
+  }
 
   // --- Signatures footer -------------------------------------------------
   // Two columns: Financial Secretary signature (left), President signature

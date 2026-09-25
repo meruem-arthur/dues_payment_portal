@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
+import QRCode from "qrcode";
 import { RefreshCw } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -239,6 +240,18 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
   const [logoDraft, setLogoDraft] = useState<string | null>(null);
   const [logoDeptError, setLogoDeptError] = useState<string | null>(null);
   const [logoSaving, setLogoSaving] = useState(false);
+
+  // "Share Links" - the Fresher/Continuing deep links + QR codes used to
+  // live on the public landing page itself; they now live here so a
+  // financial secretary can grab exactly what they need to print or share,
+  // while the public page (src/app/d/[departmentSlug]/page.tsx) stays down
+  // to just the two Pay Now cards.
+  const [shareDept, setShareDept] = useState<Department | null>(null);
+  const [shareQrs, setShareQrs] = useState<{ fresher: string | null; continuing: string | null }>({
+    fresher: null,
+    continuing: null,
+  });
+  const [copiedLink, setCopiedLink] = useState<"FRESHER" | "CONTINUING" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Receipt branding dialog - 2 signatures + printed names, all saved
@@ -463,6 +476,54 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
       onSuccess: (dataUrl) => setLogoDraft(dataUrl),
       onError: setLogoDeptError,
     });
+  }
+
+  function departmentLinks(dept: Department) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    return {
+      fresher: `${baseUrl}/d/${dept.slug}?type=FRESHER`,
+      continuing: `${baseUrl}/d/${dept.slug}?type=CONTINUING`,
+    };
+  }
+
+  function openShareLinks(dept: Department) {
+    setShareDept(dept);
+    setShareQrs({ fresher: null, continuing: null });
+    setCopiedLink(null);
+  }
+
+  function closeShareLinks() {
+    setShareDept(null);
+    setCopiedLink(null);
+  }
+
+  // Generated client-side on open rather than server-side for every
+  // department up front - there's no reason to pay that cost for
+  // departments nobody is currently sharing links for.
+  useEffect(() => {
+    if (!shareDept) return;
+    const { fresher, continuing } = departmentLinks(shareDept);
+    let cancelled = false;
+    Promise.all([
+      QRCode.toDataURL(fresher, { margin: 1, color: { dark: "#0f9b8e", light: "#ffffff" } }),
+      QRCode.toDataURL(continuing, { margin: 1, color: { dark: "#0f9b8e", light: "#ffffff" } }),
+    ]).then(([fresherQr, continuingQr]) => {
+      if (!cancelled) setShareQrs({ fresher: fresherQr, continuing: continuingQr });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shareDept]);
+
+  async function copyLink(type: "FRESHER" | "CONTINUING", link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedLink(type);
+      setTimeout(() => setCopiedLink((current) => (current === type ? null : current)), 2000);
+    } catch {
+      // Clipboard access can be denied by the browser - the link is still
+      // right there on screen to select and copy manually.
+    }
   }
 
   async function saveLogoDept() {
@@ -933,6 +994,10 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                 Receipt Branding
               </button>
 
+              <button className="text-sm text-sky-400 hover:underline" onClick={() => openShareLinks(d)}>
+                Share Links
+              </button>
+
               <button
                 className="text-sm text-amber-400 hover:underline disabled:opacity-50"
                 onClick={() => expireStalePending(d)}
@@ -1356,6 +1421,41 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
         </div>
       )}
 
+      {shareDept && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
+          <div className="admin-card my-8 w-full max-w-lg space-y-5 p-6">
+            <div>
+              <h2 className="text-lg font-semibold">Share Links</h2>
+              <p className="text-sm text-muted">
+                {shareDept.name} - the deep links and QR codes for distributing to First Year and Continuing
+                students. Each link opens straight into that payment form.
+              </p>
+            </div>
+
+            <ShareLinkBlock
+              label="First Year Students"
+              link={departmentLinks(shareDept).fresher}
+              qr={shareQrs.fresher}
+              copied={copiedLink === "FRESHER"}
+              onCopy={() => copyLink("FRESHER", departmentLinks(shareDept).fresher)}
+            />
+            <ShareLinkBlock
+              label="Continuing Students"
+              link={departmentLinks(shareDept).continuing}
+              qr={shareQrs.continuing}
+              copied={copiedLink === "CONTINUING"}
+              onCopy={() => copyLink("CONTINUING", departmentLinks(shareDept).continuing)}
+            />
+
+            <div className="flex justify-end pt-2">
+              <button type="button" className="admin-btn-secondary" onClick={closeShareLinks}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {brandingDept && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
           <div className="admin-card my-8 w-full max-w-lg space-y-4 p-6">
@@ -1687,6 +1787,40 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+function ShareLinkBlock({
+  label,
+  link,
+  qr,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  link: string;
+  qr: string | null;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-md border border-white/10 p-4 sm:flex-row sm:items-center">
+      <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-md border border-white/10 bg-white p-1.5">
+        {qr ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr} alt={`QR code for ${label}`} className="h-full w-full" />
+        ) : (
+          <Spinner />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 space-y-1.5 text-center sm:text-left">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="break-all text-xs text-muted">{link}</p>
+        <button type="button" className="text-sm text-sky-400 hover:underline" onClick={onCopy}>
+          {copied ? "Copied!" : "Copy Link"}
+        </button>
+      </div>
     </div>
   );
 }
