@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { ReceiptActions } from "@/components/receipts/receipt-actions";
 
 // This page is a UX convenience only - it reads current status to show
 // a friendly message. It NEVER mutates payment status itself; only the
@@ -43,12 +44,10 @@ export default async function PaymentStatusPage({
             : "Your payment was not successful. Please try again or contact your department."}
         </p>
         {payment.status === "SUCCESS" && payment.receipt && (
-          <a
-            href={`/api/receipts/download?ref=${encodeURIComponent(payment.internalReference)}`}
-            className="portal-btn-primary inline-block"
-          >
-            Download Receipt (PDF)
-          </a>
+          <ReceiptActions
+            downloadUrl={`/api/receipts/download?ref=${encodeURIComponent(payment.internalReference)}`}
+            fileName={`${payment.receipt.receiptNumber}.pdf`}
+          />
         )}
       </div>
     </main>
