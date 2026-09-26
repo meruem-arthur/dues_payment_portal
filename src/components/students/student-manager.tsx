@@ -34,6 +34,7 @@ export function StudentManager({
 }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -58,15 +59,27 @@ export function StudentManager({
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     const params = new URLSearchParams();
     if (departmentId) params.set("departmentId", departmentId);
     if (search) params.set("search", search);
     if (levelFilter) params.set("level", levelFilter);
     if (statusFilter) params.set("paymentStatus", statusFilter);
-    const res = await fetch(`/api/students?${params.toString()}`);
-    const data = await res.json();
-    setStudents(data.students ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/students?${params.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFetchError(data?.error ?? `Failed to load students (HTTP ${res.status})`);
+        setStudents([]);
+        return;
+      }
+      setStudents(data.students ?? []);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to load students (network error)");
+      setStudents([]);
+    } finally {
+      setLoading(false);
+    }
   }, [departmentId, search, levelFilter, statusFilter]);
 
   useEffect(() => {
@@ -286,7 +299,10 @@ export function StudentManager({
             {loading && (
               <tr><td colSpan={6} className="p-4 text-center text-muted">Loading...</td></tr>
             )}
-            {!loading && students.length === 0 && (
+            {!loading && fetchError && (
+              <tr><td colSpan={6} className="p-4 text-center text-red-400">Error: {fetchError}</td></tr>
+            )}
+            {!loading && !fetchError && students.length === 0 && (
               <tr><td colSpan={6} className="p-4 text-center text-muted">No students found.</td></tr>
             )}
             {students.map((s) => (
