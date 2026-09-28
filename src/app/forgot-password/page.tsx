@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
 
         <form onSubmit={handleSubmit} className="portal-card space-y-4 p-8 text-left">
           <p className="text-sm text-portal-muted">
-            Enter the email on your admin account and we'll send you a link to reset your password.
+            Enter the email on your admin account and we&apos;ll send you a link to reset your password.
           </p>
 
           {error && (

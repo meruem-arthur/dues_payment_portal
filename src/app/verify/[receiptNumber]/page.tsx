@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { headers } from "next/headers";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Public by design - this is exactly what the QR code on a printed/forwarded
 // receipt is for: anyone holding the paper (or a photo of it) can confirm
@@ -8,7 +10,31 @@ import { prisma } from "@/lib/db";
 // paper receipt - it identifies which record to check, it doesn't grant any
 // ability to change it. Only the fields also already printed on the receipt
 // itself are shown here, nothing additional (no phone/email).
+//
+// Rate-limited per IP (not per receiptNumber) since the risk this guards
+// against is someone scripting through many different receipt numbers in a
+// row, not a single receipt being scanned a lot - genuinely scanning your
+// own receipt a few times a day should never trip this.
+const RATE_LIMIT_MAX_REQUESTS = 30;
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+
 export default async function VerifyReceiptPage({ params }: { params: { receiptNumber: string } }) {
+  const ip = getClientIp({ headers: headers() });
+  const rateLimit = checkRateLimit(`receipts:verify:${ip}`, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
+
+  if (!rateLimit.allowed) {
+    return (
+      <main className="portal-shell flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="portal-content portal-card w-full max-w-sm space-y-3 p-8">
+          <h1 className="text-xl font-bold text-portal-text">Too Many Requests</h1>
+          <p className="text-sm text-portal-muted">
+            Please wait a few minutes before checking another receipt.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const receipt = await prisma.receipt.findUnique({
     where: { receiptNumber: params.receiptNumber },
     include: {

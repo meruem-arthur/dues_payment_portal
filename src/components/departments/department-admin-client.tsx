@@ -1319,7 +1319,7 @@ export function DepartmentAdminClient({ departments, sessions }: { departments: 
                   />
                 </div>
                 <p className="text-xs text-muted col-span-2">
-                  Only sends when a student also has an email on file - it's an optional field collected at checkout,
+                  Only sends when a student also has an email on file - it&apos;s an optional field collected at checkout,
                   so not every payment will trigger one even with this turned on.
                 </p>
 
