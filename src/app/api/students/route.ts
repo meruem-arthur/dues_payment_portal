@@ -51,10 +51,31 @@ export async function GET(req: NextRequest) {
       select: { studentId: true },
     });
     const studentIdsWithPending = new Set(pendingPayments.map((p: { studentId: string }) => p.studentId));
-    const studentsWithPendingFlag = students.map((s: { id: string }) => ({
-      ...s,
-      hasPendingPayment: studentIdsWithPending.has(s.id),
-    }));
+
+    // Each student's most recent payment attempt, regardless of status -
+    // this is how a FAILED attempt (bad key, invalid subaccount, etc.) gets
+    // surfaced as "FAILED · <reason>" instead of looking identical to a
+    // student who has simply never tried to pay. `distinct` + `orderBy`
+    // gives one row per studentId: the latest one.
+    const latestPayments = (await prisma.payment.findMany({
+      where: { studentId: { in: students.map((s: { id: string }) => s.id) } },
+      orderBy: { createdAt: "desc" },
+      distinct: ["studentId"],
+      select: { studentId: true, status: true, failureReason: true, createdAt: true },
+    })) as Array<{ studentId: string; status: string; failureReason: string | null; createdAt: Date }>;
+    const latestPaymentByStudentId = new Map(latestPayments.map((p) => [p.studentId, p] as const));
+
+    const studentsWithPendingFlag = students.map((s: { id: string }) => {
+      const latest = latestPaymentByStudentId.get(s.id);
+      return {
+        ...s,
+        hasPendingPayment: studentIdsWithPending.has(s.id),
+        lastFailedPayment:
+          latest?.status === "FAILED"
+            ? { reason: latest.failureReason, failedAt: latest.createdAt }
+            : null,
+      };
+    });
 
     return NextResponse.json({ students: studentsWithPendingFlag });
   } catch (err) {

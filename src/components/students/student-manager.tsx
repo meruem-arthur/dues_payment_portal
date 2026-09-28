@@ -14,6 +14,7 @@ type Student = {
   email: string | null;
   paymentStatus: string;
   hasPendingPayment: boolean;
+  lastFailedPayment: { reason: string | null; failedAt: string } | null;
 };
 
 const emptyForm = {
@@ -318,11 +319,27 @@ export function StudentManager({
                         ? "text-accent"
                         : s.hasPendingPayment
                           ? "text-amber-400"
-                          : "text-muted"
+                          : s.lastFailedPayment
+                            ? "text-red-400"
+                            : "text-muted"
                     }
                   >
-                    {s.paymentStatus === "SUCCESS" ? "PAID" : s.hasPendingPayment ? "PENDING" : "UNPAID"}
+                    {s.paymentStatus === "SUCCESS"
+                      ? "PAID"
+                      : s.hasPendingPayment
+                        ? "PENDING"
+                        : s.lastFailedPayment
+                          ? "FAILED"
+                          : "UNPAID"}
                   </span>
+                  {s.lastFailedPayment && !s.hasPendingPayment && s.paymentStatus !== "SUCCESS" && (
+                    <p
+                      className="mt-1 max-w-[220px] truncate text-xs text-red-400/70"
+                      title={s.lastFailedPayment.reason ?? undefined}
+                    >
+                      {s.lastFailedPayment.reason ?? "No reason recorded"}
+                    </p>
+                  )}
                   {cancelError?.id === s.id && (
                     <p className="mt-1 text-xs text-red-400">{cancelError.text}</p>
                   )}

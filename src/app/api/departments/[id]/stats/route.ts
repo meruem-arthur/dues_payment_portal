@@ -40,6 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             paymentType: true,
             paidAt: true,
             createdAt: true,
+            failureReason: true,
             student: { select: { fullName: true, referenceNumber: true } },
           },
         }),
@@ -133,6 +134,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         paymentType: p.paymentType,
         paidAt: p.paidAt,
         createdAt: p.createdAt,
+        failureReason: p.failureReason,
       })),
     });
   } catch (err) {

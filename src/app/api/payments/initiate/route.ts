@@ -10,9 +10,12 @@ import { z } from "zod";
 const initiateSchema = z.object({
   departmentSlug: z.string(),
   paymentType: z.enum(["FRESHER", "CONTINUING"]),
-  referenceNumber: z.string().min(1),
-  phone: z.string().min(9),
-  email: z.string().email().optional(),
+  // .trim() first, same reasoning as students/lookup/route.ts: this is
+  // matched against the DB with exact equality, so whitespace from a
+  // copy-paste would otherwise silently behave like a wrong reference number.
+  referenceNumber: z.string().trim().min(1),
+  phone: z.string().trim().min(9),
+  email: z.string().trim().email().optional(),
 });
 
 // This is the one fully public, unauthenticated endpoint in the app -
@@ -175,7 +178,15 @@ export async function POST(req: NextRequest) {
     } catch (providerErr) {
       await prisma.payment.update({
         where: { id: pendingPayment.id },
-        data: { status: "FAILED" },
+        data: {
+          status: "FAILED",
+          // Stored so an admin can see WHY this failed (bad/expired key,
+          // invalid subaccount, etc.) straight from the dashboard, instead of
+          // it only ever reaching console/Sentry. Truncated defensively -
+          // the provider adapters already return a short message, but this
+          // is the backstop against something unexpectedly verbose.
+          failureReason: providerErr instanceof Error ? providerErr.message.slice(0, 500) : "Unknown error",
+        },
       });
       throw providerErr;
     }

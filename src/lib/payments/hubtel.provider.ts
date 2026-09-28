@@ -9,6 +9,22 @@ import type {
 
 const HUBTEL_BASE_URL = "https://payproxyapi.hubtel.com";
 
+// Same reasoning as Paystack's extractPaystackErrorMessage: pull the
+// human-readable message out of Hubtel's error body instead of throwing the
+// raw response, so it's short enough to store as an admin-readable
+// failureReason on the Payment row.
+async function extractHubtelErrorMessage(res: Response): Promise<string> {
+  const bodyText = await res.text();
+  try {
+    const parsed = JSON.parse(bodyText);
+    const message = parsed.message ?? parsed.Message;
+    if (typeof message === "string" && message.trim()) return message;
+  } catch {
+    // Not JSON - fall through to the raw text below.
+  }
+  return bodyText.slice(0, 300) || `HTTP ${res.status}`;
+}
+
 /**
  * Hubtel Online Checkout adapter.
  *
@@ -75,13 +91,13 @@ export class HubtelProvider implements PaymentProvider {
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Hubtel checkout initialization failed: ${body}`);
+      throw new Error(`Hubtel checkout initialization failed: ${await extractHubtelErrorMessage(res)}`);
     }
 
     const data = await res.json();
     if (data.code !== "200" && data.responseCode !== "0000") {
-      throw new Error(`Hubtel checkout initialization failed: ${JSON.stringify(data)}`);
+      const message = typeof data.message === "string" && data.message.trim() ? data.message : JSON.stringify(data).slice(0, 300);
+      throw new Error(`Hubtel checkout initialization failed: ${message}`);
     }
 
     return {

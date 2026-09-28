@@ -40,6 +40,7 @@ type Stats = {
     paymentType: string;
     paidAt: string | null;
     createdAt: string;
+    failureReason: string | null;
   }[];
 };
 
@@ -242,21 +243,28 @@ export function DepartmentFilterDashboard({ departments }: { departments: Depart
                   {stats.recentPayments.map((p) => (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between rounded-lg border border-admin-border/60 px-3 py-2 text-sm"
+                      className="rounded-lg border border-admin-border/60 px-3 py-2 text-sm"
                     >
-                      <div>
-                        <p className="text-admin-text">{p.studentName}</p>
-                        <p className="text-xs text-admin-muted">{p.referenceNumber}</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-admin-text">{p.studentName}</p>
+                          <p className="text-xs text-admin-muted">{p.referenceNumber}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-admin-text">{GHS.format(p.amount)}</p>
+                          <p
+                            className="text-xs"
+                            style={{ color: STATUS_COLORS[p.status] ?? "#9c93b3" }}
+                          >
+                            {p.status}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-admin-text">{GHS.format(p.amount)}</p>
-                        <p
-                          className="text-xs"
-                          style={{ color: STATUS_COLORS[p.status] ?? "#9c93b3" }}
-                        >
-                          {p.status}
+                      {p.status === "FAILED" && p.failureReason && (
+                        <p className="mt-1.5 truncate border-t border-admin-border/40 pt-1.5 text-xs text-red-400/80" title={p.failureReason}>
+                          {p.failureReason}
                         </p>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>

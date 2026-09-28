@@ -7,7 +7,11 @@ import { z } from "zod";
 const lookupSchema = z.object({
   departmentSlug: z.string(),
   paymentType: z.enum(["FRESHER", "CONTINUING"]),
-  referenceNumber: z.string().min(1),
+  // .trim() first: this is matched against the DB with an exact equality
+  // check, so a stray leading/trailing space (easy to introduce by
+  // copy-pasting the reference number) would otherwise look identical to a
+  // wrong reference number - see /api/payments/initiate for the same fix.
+  referenceNumber: z.string().trim().min(1),
 });
 
 // Same public trust model as /api/payments/initiate: no session required,

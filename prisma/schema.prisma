@@ -267,6 +267,12 @@ model Payment {
   currency      String        @default("GHS")
   paymentType   PaymentType
   status        PaymentStatus @default(PENDING)
+  // The provider's own error message when initiatePayment() threw (bad/expired
+  // key, invalid subaccount/merchant number, provider-side validation, etc.).
+  // Null for anything that isn't FAILED. This is what lets an admin see WHY a
+  // payment failed without needing Sentry/console access - see the catch
+  // block in /api/payments/initiate.
+  failureReason String?
 
   paidAt        DateTime?
   createdAt     DateTime      @default(now())
@@ -388,6 +394,13 @@ model NotificationLog {
   status       NotificationStatus  @default(PENDING)
   errorMessage String?
   relatedPaymentId String?
+
+  // Set when an admin dismisses this failure from the dashboard alert
+  // (having fixed the underlying cause, or confirmed it doesn't need one).
+  // Resolved failures never reappear even if they're still within the
+  // alert's lookback window - see getRecentNotificationFailures().
+  resolvedAt   DateTime?
+  resolvedBy   String?
 
   createdAt DateTime @default(now())
 

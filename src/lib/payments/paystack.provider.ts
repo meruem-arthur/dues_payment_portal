@@ -9,6 +9,21 @@ import type {
 
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
+// Paystack's error body is JSON with a human-readable `message` (e.g.
+// "Invalid key", "Subaccount code is invalid") - pulling that out instead of
+// throwing the raw response body is what lets /api/payments/initiate store a
+// short, admin-readable failureReason instead of a wall of JSON.
+async function extractPaystackErrorMessage(res: Response): Promise<string> {
+  const bodyText = await res.text();
+  try {
+    const parsed = JSON.parse(bodyText);
+    if (typeof parsed.message === "string" && parsed.message.trim()) return parsed.message;
+  } catch {
+    // Not JSON - fall through to the raw text below.
+  }
+  return bodyText.slice(0, 300) || `HTTP ${res.status}`;
+}
+
 export class PaystackProvider implements PaymentProvider {
   readonly name = "PAYSTACK" as const;
 
@@ -42,8 +57,7 @@ export class PaystackProvider implements PaymentProvider {
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Paystack initialization failed: ${body}`);
+      throw new Error(`Paystack initialization failed: ${await extractPaystackErrorMessage(res)}`);
     }
 
     const data = await res.json();
