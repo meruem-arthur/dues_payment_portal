@@ -62,7 +62,7 @@ export function NotificationFailuresAlert({
               {emailCount > 0 && <>{emailCount} email{emailCount === 1 ? "" : "s"}</>}
               {emailCount > 0 && smsCount > 0 && ", "}
               {smsCount > 0 && <>{smsCount} SMS</>}
-              {" "}— students may not have received their payment receipts. Once you've fixed the
+              {" "}— students may not have received their payment receipts. Once you&apos;ve fixed the
               cause, mark each one fixed so it stops showing here.
             </p>
           </div>
